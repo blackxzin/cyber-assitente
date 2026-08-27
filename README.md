@@ -20,6 +20,10 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - `hydra_bruteforce` — testa credenciais contra um serviço (ssh/ftp/http/mysql/...), para no primeiro par válido (porta customizada opcional via `port`);
   - `gobuster_scan` — enumera diretórios/arquivos de uma URL;
   - `nikto_scan` — varre vulnerabilidades web conhecidas numa URL;
+  - `searchsploit_lookup` — busca exploit conhecido offline (exploit-db local) por serviço/versão
+    (`pacman -S exploitdb` no Arch); **não pede confirmação** (busca local, não toca o alvo) e
+    roda automático depois de todo `nmap_scan` — cada serviço com versão detectada vira uma
+    busca, resultado anexado direto na resposta do scan (fecha o ciclo achar→explorar);
   - `packet_capture` — captura tráfego (`dumpcap`) e resume com `tshark`;
   - `cpf_osint` — mapeia contas associadas a um CPF (usa o [cpfFinder](https://github.com/p1ngul1n0/cpfFinder));
   - `burp_proxy_history` / `burp_send_request` — lê histórico do proxy e reenvia requisições via a ponte com o Burp Suite.
