@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+logs/
+.env
+overlay/node_modules/
+*.pcapng
+/tmp/
+burp-extension/out/
+burp-extension/*.jar

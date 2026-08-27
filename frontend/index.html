@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cybersecurity AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar glass">
+      <div class="brand">
+        <span class="logo">🛡</span>
+        <div>
+          <div class="brand-name">CYBERSECURITY AI</div>
+          <div class="brand-sub">assistente pessoal</div>
+        </div>
+      </div>
+      <nav id="nav">
+        <button class="nav-item active" data-view="dashboard"><span>📊</span> Dashboard</button>
+        <button class="nav-item" data-view="chat"><span>💬</span> Chat</button>
+        <button class="nav-item" data-view="terminal"><span>⌨️</span> Terminal</button>
+        <button class="nav-item" data-view="memory"><span>🧠</span> Memória</button>
+        <button class="nav-item" data-view="security"><span>🛡</span> Segurança</button>
+        <button class="nav-item" data-view="logs"><span>📜</span> Logs</button>
+        <button class="nav-item" data-view="settings"><span>⚙️</span> Configurações</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="model-badge" class="badge">carregando…</div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Chat view -->
+      <section id="view-chat" class="view active">
+        <header class="view-header">
+          <h1>Chat</h1>
+          <div class="actions">
+            <button id="btn-clear" class="btn ghost">Limpar</button>
+          </div>
+        </header>
+        <div id="messages" class="messages"></div>
+        <form id="chat-form" class="composer">
+          <button type="button" id="mic-btn" class="btn ghost mic" title="Segure para falar (PTT)">🎙</button>
+          <input id="chat-input" type="text" placeholder="Pergunte sobre sua rede, sistema, segurança…" autocomplete="off" />
+          <button type="submit" class="btn primary">➤</button>
+        </form>
+      </section>
+
+      <!-- Dashboard view -->
+      <section id="view-dashboard" class="view">
+        <header class="view-header"><h1>Dashboard</h1></header>
+        <div id="dash" class="grid">
+          <div class="card glass"><div class="card-title">CPU</div><div id="dash-cpu" class="card-value">—</div></div>
+          <div class="card glass"><div class="card-title">Memória</div><div id="dash-mem" class="card-value">—</div></div>
+          <div class="card glass"><div class="card-title">Disco</div><div id="dash-disk" class="card-value">—</div></div>
+          <div class="card glass"><div class="card-title">Alertas</div><div id="dash-alerts" class="card-value">—</div></div>
+          <div class="card glass wide"><div class="card-title">Memória detalhada</div><pre id="dash-mem-detail" class="pre"></pre></div>
+          <div class="card glass wide"><div class="card-title">Disco detalhado</div><pre id="dash-disk-detail" class="pre"></pre></div>
+        </div>
+      </section>
+
+      <!-- Terminal view -->
+      <section id="view-terminal" class="view">
+        <header class="view-header"><h1>Cyber Terminal</h1></header>
+        <div class="card glass term">
+          <div id="term-out" class="term-out"></div>
+          <form id="term-form" class="term-in">
+            <span class="prompt">$</span>
+            <input id="term-input" type="text" placeholder="comandos de leitura (ex: ip addr)" autocomplete="off" />
+          </form>
+        </div>
+      </section>
+
+      <!-- Memory / Learning view -->
+      <section id="view-memory" class="view">
+        <header class="view-header"><h1>Memória</h1></header>
+        <div class="grid">
+          <div class="card glass wide">
+            <div class="card-title">Fatos guardados</div>
+            <p class="muted">Coisas guardadas com "lembra que…" no chat (tool <code>remember</code>) —
+              os mais recentes voltam sozinhos no contexto das próximas conversas.</p>
+            <form id="memory-form" class="row">
+              <input id="memory-input" type="text" placeholder="ex: o servidor de backup é 10.0.0.9" />
+              <button class="btn">Guardar</button>
+            </form>
+            <div id="memory-list" class="tools"></div>
+          </div>
+          <div class="card glass wide">
+            <div class="card-title">Progresso de aprendizado</div>
+            <p class="muted">Conceitos perguntados no modo Learning ("explica X" / "o que é X").</p>
+            <div id="learning-list" class="tools"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security view -->
+      <section id="view-security" class="view">
+        <header class="view-header"><h1>Segurança</h1></header>
+        <div class="card glass">
+          <div class="card-title">Safety Layer</div>
+          <p class="muted">Ferramentas disponíveis e veredito de classificação de comandos.</p>
+          <div id="tools-list" class="tools"></div>
+          <hr />
+          <label class="field-label">Testar classificação de um comando</label>
+          <form id="classify-form" class="row">
+            <input id="classify-input" type="text" placeholder="ex: rm -rf /" />
+            <button class="btn">Classificar</button>
+          </form>
+          <pre id="classify-result" class="pre"></pre>
+        </div>
+      </section>
+
+      <!-- Logs view -->
+      <section id="view-logs" class="view">
+        <header class="view-header"><h1>Logs</h1></header>
+        <div class="card glass">
+          <div class="card-title">Eventos de segurança</div>
+          <pre id="events-out" class="pre">(sem eventos)</pre>
+        </div>
+      </section>
+
+      <!-- Settings view -->
+      <section id="view-settings" class="view">
+        <header class="view-header"><h1>Configurações</h1></header>
+        <div class="card glass">
+          <div class="card-title">IA</div>
+          <div class="row">
+            <label>Provider <input id="set-provider" value="ollama" /></label>
+            <label>Modelo <input id="set-model" value="dolphin-llama3" /></label>
+          </div>
+          <hr />
+          <div class="card-title">Segurança</div>
+          <label class="row">Modo
+            <select id="set-mode">
+              <option value="safe">SAFE</option>
+              <option value="assisted" selected>ASSISTED</option>
+              <option value="advanced">ADVANCED</option>
+            </select>
+          </label>
+          <p class="muted">SAFE = somente leitura · ASSISTED = permite leitura, exige confirmação p/ mudanças · ADVANCED = mais permissões (bloqueios mantidos).</p>
+          <hr />
+          <div class="card-title">Personagem</div>
+          <label class="row"><input type="checkbox" id="set-char" checked /> Personagem ativa</label>
+          <div class="row">
+            <label>Tamanho <input type="range" id="set-scale" min="40" max="160" value="90" /></label>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Character panel -->
+  <div id="character" class="character">
+    <div class="character-stage" id="char-stage">
+      <div class="char-bubble" id="char-bubble"></div>
+      <div class="char-sprite">
+        <img id="char-img" alt="Cyber" />
+      </div>
+      <div class="char-name">Cyber</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Approval modal -->
+  <div id="confirm-modal" class="confirm-overlay hidden">
+    <div class="confirm-box">
+      <h3>⚠️ Aprovar ação?</h3>
+      <p id="confirm-tool" class="muted"></p>
+      <p id="confirm-summary"></p>
+      <div class="confirm-actions">
+        <button id="confirm-deny" class="btn ghost">Negar</button>
+        <button id="confirm-approve" class="btn primary">Aprovar e executar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

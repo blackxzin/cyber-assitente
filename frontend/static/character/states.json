@@ -1,0 +1,12 @@
+{
+  "states": {
+    "idle":     { "dir": "idle",     "frames": 6, "fps": 6 },
+    "thinking": { "dir": "thinking", "frames": 3, "fps": 4 },
+    "talking":  { "dir": "speaking", "frames": 7, "fps": 10 },
+    "working":  { "dir": "working",  "frames": 6, "fps": 7 },
+    "alert":    { "dir": "alert",    "frames": 3, "fps": 5 },
+    "sleep":    { "dir": "sleep",    "frames": 4, "fps": 3 },
+    "listening":{ "dir": "listening","frames": 3, "fps": 5 },
+    "walk":     { "dir": "walk",     "frames": 7, "fps": 8 }
+  }
+}

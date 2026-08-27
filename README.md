@@ -1,0 +1,213 @@
+# 🛡 Cybersecurity AI
+
+> **⚠️ Em desenvolvimento ativo** — código muda a cada sessão. Fluxos principais funcionam (chat, ferramentas, voz), mas não é estável para uso em produção.
+
+Assistente pessoal de **pentest/red-team** para Linux, com IA local (Ollama),
+agentes especializados, ferramentas ofensivas **com confirmação humana**,
+terminal controlado, dashboard e uma **personagem animada** como interface visual.
+
+![status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)
+
+---
+
+## O que faz hoje
+
+- **Chat com IA local** (Ollama, `DeepHat-V1-7B`, fine-tune de segurança) com streaming SSE.
+- **Agentes especializados** (system / network / security / learning) que decidem qual ferramenta usar e explicam o resultado em português.
+- **Ferramentas de auditoria ativa** que **exigem aprovação humana** antes de executar:
+  - `nmap_scan` — escaneia portas/serviços de um host (`nmap -sT -sV`, não precisa de root);
+  - `sqlmap_scan` — testa injeção SQL numa URL (`sqlmap --batch`);
+  - `hydra_bruteforce` — testa credenciais contra um serviço (ssh/ftp/http/mysql/...), para no primeiro par válido;
+  - `gobuster_scan` — enumera diretórios/arquivos de uma URL;
+  - `nikto_scan` — varre vulnerabilidades web conhecidas numa URL;
+  - `packet_capture` — captura tráfego (`dumpcap`) e resume com `tshark`;
+  - `cpf_osint` — mapeia contas associadas a um CPF (usa o [cpfFinder](https://github.com/p1ngul1n0/cpfFinder));
+  - `burp_proxy_history` / `burp_send_request` — lê histórico do proxy e reenvia requisições via a ponte com o Burp Suite.
+- **Ferramentas de leitura** (sem confirmação): interfaces, rotas, DNS, portas locais, serviços systemd, conectividade, logs de segurança, CPU/RAM/disco/processos.
+- **Voz**: botão de mic na UI web e PTT no overlay desktop (`Ctrl+Shift+M`) — transcrição local (faster-whisper) e fala local (espeak-ng).
+- **Overlay desktop**: personagem animada em janela transparente (Electron + Hyprland), estados
+  listening/thinking/talking/alert — sincronizados tanto com a voz quanto com alertas reais do
+  watcher (porta nova, disco cheio, diff de scan): a personagem reage sozinha, sem precisar
+  interagir por voz.
+- **Logging e auditoria**: tudo sanitizado e registrado em `logs/security.log` + SQLite.
+- **Watcher em segundo plano** (a cada `WATCHER_INTERVAL_SECONDS`, padrão 5min):
+  - diff de portas locais escutando (`ss -tulnp`) — porta nova = alerta;
+  - diff de portas abertas entre scans `nmap_scan` do mesmo host — porta nova = alerta + aviso na resposta do chat;
+  - disco acima de `DISK_ALERT_PERCENT`% = alerta (sem repetir enquanto continuar acima);
+  - purga automática de resultados `cpf_osint` com mais de `OSINT_RETENTION_DAYS` dias (LGPD);
+  - alerta grave dispara notificação desktop (`notify-send`).
+- **Dashboard** com CPU/memória/disco em tempo real (antes fixo em "—").
+- **Providers de IA**: `ollama` (padrão), `nvidia` (visão), `openai`/`lmstudio`/`openrouter` (API OpenAI-compatible — `openrouter` dá acesso a várias IAs de vários fabricantes com uma chave só), `anthropic` (Claude, API nativa).
+- **Research provider (opcional)**: `RESEARCH_PROVIDER` no `.env` liga um 2° modelo só pra
+  pesquisa/planejamento — o Planner (monta o plano de pentest) e o Validator (avalia o
+  resultado / o que falta) passam a usar ele em vez do DeepHat. O DeepHat (`AI_PROVIDER`)
+  continua sendo quem decide e executa as ferramentas de verdade. Vazio (padrão) = um
+  modelo só pra tudo, como sempre foi.
+- **Memória longa**: ferramentas `remember`/`recall` guardam fatos em SQLite entre sessões
+  (`GET/POST /api/memory`, `DELETE /api/memory/{id}`); os fatos mais recentes são injetados
+  automaticamente no contexto do chat, sem precisar pedir explicitamente. Tem aba própria
+  na UI ("🧠 Memória") pra ver, adicionar e esquecer fatos manualmente.
+- **Modo Learning**: perguntas de "explica X" caem num agente que estrutura a resposta em
+  Conceito/Exemplo prático/Cuidado/Pergunta pra fixar e registra o progresso por conceito
+  em SQLite (`GET /api/learning/progress`, também visível na aba "🧠 Memória") —
+  reperguntar o mesmo conceito muda o tom da explicação.
+- **Hardening de API**: `API_TOKEN` opcional (header `X-API-Token`, desativado por padrão —
+  só relevante se o servidor sair de 127.0.0.1) e rate limit por IP em toda rota `/api/*`
+  (`RATE_LIMIT_PER_MINUTE`, padrão 120/min).
+
+---
+
+## Arquitetura (resumo)
+
+```
+backend/
+├── api/          FastAPI: /api/chat (SSE), /api/system, /api/terminal, /api/tools,
+│                 /api/actions/{id}/approve|deny, /api/audio/*, /api/vision…
+├── ai/
+│   └── providers/  interface LLMProvider (ollama hoje; openai/anthropic/lmstudio depois)
+├── agents/       Orchestrator + especialistas (system, network, security, learning)
+├── tools/        ferramentas de leitura (system, network, diagnostics)
+│   │             + pentest (nmap_scan, packet_capture, cpf_osint) — exigem confirmação
+│   ├── confirm.py   fila de aprovações humanas (pending → approved/denied/expired)
+│   ├── terminal/    executor controlado (allowlist/denylist, sem shell)
+├── security/     Safety Layer (classificação) + sanitização de segredos + logging
+├── services/     ChatService (orquestração), audio (STT/TTS), screen (visão)
+└── database/     SQLite (stdlib), esquema pronto p/ migrar a PostgreSQL
+frontend/         HTML/CSS/JS puro servido pelo backend (sem build)
+overlay/          personagem animada (Electron) — integração com o chat por voz
+```
+
+### Fluxo de uma mensagem
+
+```
+input → sanitize → Orchestrator (classifica intenção)
+     → decide ferramenta (+ args via JSON heurístico)
+     → se a ferramenta é de risco moderado → PEDE CONFIRMAÇÃO humana
+          ├─ aprovar → executa → LLM explica o resultado real
+          └─ negar   → nada roda (tudo fica registrado)
+     → se é leitura segura → executa → LLM explica
+     → stream SSE p/ o chat (com campo "pending" quando há ação a aprovar)
+     → persistência SQLite
+```
+
+### Confirmação humana — o princípio mais importante
+
+Nenhuma ferramenta de auditoria ativa roda sem o seu OK:
+
+1. Você pede algo como *"escaneie 10.0.0.5"*;
+2. a IA decide a ferramenta e abre um **modal Aprovar/Negar** na UI;
+3. **Aprovar** → executa e a IA interpreta o resultado · **Negar** → nada executa;
+4. a ação expira em 5 minutos se ninguém decidir.
+
+O Safety Layer ainda aplica em paralelo:
+- **denylist** (rm, dd, mkfs, shutdown…) → sempre bloqueados (protege a própria máquina, não é sobre ofensiva);
+- ferramentas ofensivas (nmap, sqlmap, hydra, gobuster, nikto, masscan, metasploit, hashcat, john…) não são bloqueadas por nome — passam por confirmação humana como qualquer outra ação de risco moderado;
+- **nunca** usa shell (argv direto) → sem injeção;
+- timeout rígido, saída redigida (sem segredos), tudo registrado.
+
+`SAFE_MODE`: `safe` (somente leitura) | `assisted` (leitura + confirmação, **padrão**) |
+`advanced` (**pentest automático** — ferramentas que normalmente parariam pra aprovação
+humana, incluindo dentro de um plano multi-passo do Planner, rodam direto, sem clicar
+Aprovar em cada uma. Fica registrado em log de qualquer forma. Use só se você mesmo é o
+único operando essa instância, contra alvo próprio/autorizado).
+
+---
+
+## Instalação
+
+Pré-requisitos: **Python 3.12+**, **Ollama** (`ollama pull hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M`),
+e (opcional, para captura) estar no grupo `wireshark`.
+
+```bash
+./install.sh     # venv + deps + verifica modelo + DB
+./start.sh       # sobe o servidor → http://127.0.0.1:8000
+./run.sh         # servidor + personagem no desktop (overlay)
+./overlay.sh     # só a personagem + backend (voz PTT)
+```
+
+Configuração: copie `.env.example` para `.env` e ajuste.
+
+### Extra — cpf_osint
+
+O `cpf_osint` usa o [cpfFinder](https://github.com/p1ngul1n0/cpfFinder), esperado por
+padrão em `~/cpfFinder` (script `cpfinder.py` + `data.json`; ajustável via
+`CPF_FINDER_DIR` no `.env`). Se você for usar essa ferramenta, clone-o:
+
+```bash
+git clone https://github.com/p1ngul1n0/cpfFinder ~/cpfFinder
+```
+
+### Extra — Burp Suite (burp_proxy_history, burp_send_request)
+
+A ponte fala com a extensão oficial **MCP Server** da PortSwigger via
+[Model Context Protocol](https://modelcontextprotocol.io):
+
+1. No Burp: **Extensions → BApp Store** → busque **"MCP Server"** → **Install**
+   (ou baixe manualmente em
+   [portswigger.net/bappstore](https://portswigger.net/bappstore/9952290f04ed4f628e624d0aa9dccebc)
+   e carregue via **Extensions → Add**).
+2. Na aba **MCP** que aparece no Burp, marque **Enabled** (padrão:
+   `127.0.0.1:9876`, ajustável via `BURP_MCP_URL` no `.env` se você mudar a porta).
+
+A extensão mostra seu próprio dialog **Allow/Deny** no Burp para cada
+requisição enviada e cada leitura de histórico — além da confirmação já
+pedida pelo cyber-assitente, é uma segunda camada de aprovação.
+
+> A antiga ponte Java própria (`burp-extension/cyber-bridge.jar`) foi
+> descontinuada em favor do MCP Server oficial — o código fica em
+> `burp-extension/` só de referência. Veja `burp-extension/README.md`.
+
+### Extra — overlay desktop
+
+```bash
+cd overlay && npm install   # instala o Electron (uma vez)
+./run.sh                    # ou ./overlay.sh
+```
+
+Atalhos do overlay: `Ctrl+Shift+M` = voz PTT · `Ctrl+Shift+V` = ela olha a tela ·
+`Ctrl+Shift+X` = fechar.
+
+---
+
+## Testes
+
+```bash
+./.venv/bin/pip install -r requirements-dev.txt
+./.venv/bin/python -m pytest              # validação de entrada + fluxo de confirmação
+./.venv/bin/python tests/test_safety.py   # self-check do Safety Layer + Executor
+```
+
+Cobrem: allowlist, denylist, comandos desconhecidos, execução bloqueada,
+sanitização de segredos, ferramentas confirmáveis (registro, risco,
+validação de CPF/host/interface contra flag-injection), e o fluxo de
+aprovação humana (`ConfirmationStore`: registrar, aprovar, negar, expirar).
+CI roda essa suíte a cada push/PR (`.github/workflows/tests.yml`).
+
+---
+
+## Roadmap
+
+- **Fase 1** ✅ chat + ferramentas de leitura + Safety Layer + UI
+- **Fase 2** ✅ logging estruturado + ferramentas de diagnóstico + voz PTT + **confirmação humana real** (nmap/captura/OSINT)
+- **Fase 3** ✅ agentes completos (Planner/Executor/Validator) — pipeline pra pedidos complexos multi-passo
+- **Fase 4** ✅ overlay sincronizado — estados ligados à voz **e** aos alertas reais do watcher (a personagem reage sozinha a porta nova/disco cheio/diff de scan, não só a interação por voz)
+- **Fase 5** ✅ dashboard ao vivo (CPU/mem/disco reais) + watcher de alertas (portas/disco/diff de scan) + **modo Learning** (estruturado, com progresso por conceito, com aba própria na UI)
+- **Fase 6** ✅ providers openai/lmstudio/anthropic + **memória longa** (`remember`/`recall`, injetada automaticamente no contexto, com aba própria na UI)
+- **Fase 7** — integração ghunt: **bloqueada em decisão do usuário** (requer venv próprio com
+  Python 3.13 por causa do `pillow<11` sem wheel pra 3.14, e `ghunt login` é um OAuth
+  interativo no navegador do usuário contra a própria conta Google — não é algo que dá
+  pra automatizar/decidir por ele). Sem isso resolvido manualmente, a integração fica pendente.
+- **Hardening** ✅ `API_TOKEN` opcional + rate limit por IP em `/api/*`
+
+---
+
+## Segurança
+
+Este é um projeto de **pentest pessoal/lab**: scan, brute-force, exploração e OSINT
+só devem ser usados contra **sistemas próprios ou autorizados** (engagement, CTF,
+lab). O design assume que um humano aprova cada ação sensível antes do disparo —
+nada de varredura em massa automática.
+
+`cpf_osint` retorna dado pessoal (LGPD): os resultados ficam só em `data/` e
+`logs/` (ambos fora do git, ver `.gitignore`) — apague esses diretórios
+periodicamente se não precisar reter o histórico de consultas.

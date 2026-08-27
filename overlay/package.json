@@ -1,0 +1,17 @@
+{
+  "name": "cybersecurity-ai-overlay",
+  "version": "0.1.0",
+  "description": "Personagem animada do Cybersecurity AI na área de trabalho (overlay transparente)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron . --disable-gpu",
+    "overlay": "electron . --disable-gpu"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

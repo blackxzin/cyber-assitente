@@ -1,0 +1,399 @@
+"""Agent registry: routes a request to the right specialist."""
+
+import json
+import re
+import time
+from typing import TYPE_CHECKING
+
+from config.settings import settings
+from database import db as database
+from security.errors import describe_exception as _describe_exception
+from security.logging import log_event, log_tool
+from security.sanitize import sanitize_text
+
+from .base import AgentContext
+from tools.confirm import ConfirmationStore
+
+if TYPE_CHECKING:
+    from tools.registry import ToolRegistry
+    from ai.providers.base import LLMProvider
+
+_SYNTHESIS_INPUT_CHARS = 3000
+_PLAN_CHARS = 600
+_MEMORY_FACTS_INJECTED = 6
+
+
+def _memory_snippet() -> str:
+    """Recent long-term facts (see tools/memory.py), formatted for a system
+    prompt so the assistant references them without an explicit 'recall'."""
+    facts = database.list_memory(limit=_MEMORY_FACTS_INJECTED)
+    if not facts:
+        return ""
+    lines = "\n".join(f"- {f['content']}" for f in reversed(facts))
+    return f"\n\nFatos que você já sabe sobre o usuário/ambiente:\n{lines}"
+
+
+def _truncate_for_synthesis(text: str) -> str:
+    """Caps tool output fed into a synthesis prompt. Full output is still
+    kept for the audit trail (last_tool_calls/log_tool) — this only shields
+    the LLM call from huge blobs (e.g. nmap NSE service fingerprints) that
+    add no explanatory value but do add real timeout risk on slower models."""
+    if len(text) <= _SYNTHESIS_INPUT_CHARS:
+        return text
+    return text[:_SYNTHESIS_INPUT_CHARS] + "\n...[truncado para a síntese]"
+
+
+_KEYWORDS: list[tuple[str, str]] = [
+    # "learning" goes first: its keywords are explicit teaching-intent verbs
+    # ("explica", "o que é"...), not topic nouns — "explica firewall" or
+    # "o que é nmap" must win over the security/network/system topic
+    # buckets below, or every "explain a security concept" question (the
+    # exact case Learning mode exists for) gets routed to tool execution
+    # instead, since those buckets' keyword sets overlap heavily with
+    # common security-learning topics.
+    ("learning", r"\b(?:explica|aprend|ensinar|professor|conceito|tutorial|o que é|o que e)\b"),
+    ("network", r"\b(?:rede|net|ip|interface|dns|route|conex|banda|ping|wifi)\b"),
+    ("system", r"\b(?:cpu|ram|mem|disk|proces|servi|sistema|hardware|boot|kernel)\b"),
+    ("security", r"\b(?:secur|vuln|scan|porta|log|alerta|firewall|nmap|backup|hardening)\b"),
+]
+
+
+def classify(prompt: str) -> str:
+    """Route a request to an agent domain by keyword match."""
+    lowered = prompt.lower()
+    for agent, pattern in _KEYWORDS:
+        if re.search(pattern, lowered):
+            return agent
+    return "network"
+
+
+class Orchestrator:
+    """Coordinates agent selection, tool execution and final LLM synthesis."""
+
+    def __init__(
+        self, provider: "LLMProvider", registry: "ToolRegistry", store: ConfirmationStore,
+        research_provider: "LLMProvider | None" = None,
+    ) -> None:
+        self.provider = provider
+        # DeepHat (provider) decide e executa ferramentas. research_provider é
+        # opcional (settings.research_provider) — um 2° modelo só pra
+        # pesquisa/planejamento (Planner/Validator); sem ele, cai no mesmo
+        # provider de sempre (comportamento idêntico a antes desse recurso).
+        self.research_provider = research_provider or provider
+        self.registry = registry
+        self.store = store
+        self.last_tool_calls: list[dict] = []
+        # Presente quando a resposta contém uma ação aguardando aprovação.
+        self.last_pending: dict | None = None
+
+    async def run(self, prompt: str, history: list[dict[str, str]]) -> str:
+        self.last_tool_calls = []
+        self.last_pending = None
+        from agents.planner import is_complex_task
+        if is_complex_task(prompt):
+            result = await self._run_pipeline(prompt, history)
+            if result is not None:
+                return result
+        agent_name = classify(prompt)
+        return await self._run_agent(agent_name, prompt, history)
+
+    async def _run_pipeline(self, prompt: str, history: list[dict[str, str]]) -> str | None:
+        """Planner → Executor → Validator pipeline for complex tasks.
+
+        Returns None if planner fails to generate a plan (fall back to single-tool mode).
+        """
+        from agents.planner import TaskPlanner
+        from agents.executor import PlanExecutor
+        from agents.validator import ResultValidator
+
+        planner = TaskPlanner(self.research_provider, self.registry)
+        steps = await planner.plan(prompt)
+        if not steps:
+            return None
+
+        executor = PlanExecutor(self.registry, self.store)
+        results, pending = await executor.execute(steps)
+
+        for r in results:
+            if r.tool and r.output:
+                self.last_tool_calls.append({
+                    "tool": r.tool,
+                    "status": r.status,
+                    "result": r.output[:500],
+                })
+
+        if pending:
+            self.last_pending = pending
+            completed_text = self._format_partial_results(results)
+            return (
+                f"{completed_text}"
+                f"\n\n⚠️ Passo {pending['step_id']} requer autorização: "
+                f"**{pending['tool']}** — {pending['summary']}. "
+                "Aprovar ou negar no painel."
+            )
+
+        if not results:
+            return None
+
+        validator = ResultValidator(self.research_provider)
+        validation = await validator.validate(prompt, results)
+
+        return await self._synthesize_plan(prompt, results, validation)
+
+    def _format_partial_results(self, results: list) -> str:
+        parts: list[str] = []
+        for r in results:
+            if r.status == "ok" and r.output:
+                parts.append(f"**Passo {r.step_id}** ({r.tool}): concluído")
+        if not parts:
+            return ""
+        return "\n".join(parts)
+
+    async def _synthesize_plan(self, prompt: str, results: list, validation: object) -> str:
+        ok_results = [(r.tool, r.output) for r in results if r.status == "ok" and r.output]
+        if not ok_results:
+            return "Nenhum resultado obtido nos passos executados."
+
+        results_block = "\n\n".join(
+            f"[{tool}]\n{out[:_PLAN_CHARS]}"
+            for tool, out in ok_results
+        )
+        gaps_note = (
+            f"\nLacunas detectadas: {', '.join(validation.gaps)}"
+            if hasattr(validation, "gaps") and validation.gaps else ""
+        )
+        messages = [
+            {"role": "system", "content": (
+                "Você é o Cyber, assistente de segurança. "
+                "Explique em português os resultados de um plano multi-passo executado. "
+                "Cite dados reais. Estruture: sumário, achados por ferramenta, conclusão. "
+                "Nunca invente dados."
+            )},
+            {"role": "user", "content": (
+                f"Pedido original: {prompt}\n\n"
+                f"Resultados coletados:\n{results_block}{gaps_note}"
+            )},
+        ]
+        try:
+            return (await self.provider.complete(messages)).strip()
+        except Exception as exc:
+            return f"{results_block}\n\n(síntese indisponível: {_describe_exception(exc)})"
+
+    async def _run_agent(self, agent: str, prompt: str, history: list[dict[str, str]]) -> str:
+        from agents.system_agent import SystemAgent
+
+        if agent == "system":
+            ctx = AgentContext(prompt=prompt, history=history)
+            answer = await SystemAgent(self.provider, self.registry).run(ctx)
+        elif agent == "learning":
+            from agents.learning_agent import LearningAgent
+            ctx = AgentContext(prompt=prompt, history=history)
+            answer = await LearningAgent(self.provider).run(ctx)
+        else:
+            answer = await self._run_with_tools(prompt, history)
+        return answer
+
+    async def _run_with_tools(self, prompt: str, history: list[dict[str, str]]) -> str:
+        """Classic loop: LLM decides tool → confirm if risky → execute → explain."""
+        tool_names = [t.name for t in self.registry.list()]
+        tool_block = "\n".join(
+            f"- {t.name}: {t.description}" for t in self.registry.list()
+        )
+        decide_prompt = (
+            "You decide which tool answers the user. Tools:\n"
+            f"{tool_block}\n"
+            "Reply ONLY with a JSON object: {\"tool\": \"<name>\", \"args\": {…}} "
+            "filling in the required args from the user's request. "
+            "Use {\"tool\": null} if no tool is needed."
+            f"{_memory_snippet()}"
+        )
+        decision = await self._decide_tool(decide_prompt, prompt)
+        chosen, args, well_formed = self._extract_tool(decision)
+
+        needs_retry = (chosen and chosen not in tool_names) or not well_formed
+        if needs_retry:
+            reason = (
+                f"citou a ferramenta '{chosen}', que não existe" if chosen
+                else "não veio em JSON válido"
+            )
+            log_event("warning", "orchestrator", f"decisão do LLM {reason}; tentando de novo")
+            retry_prompt = (
+                f"{decide_prompt}\n\nSua resposta anterior {reason}. "
+                "Responda de novo com APENAS o JSON, sem texto extra, "
+                "escolhendo um nome EXATO da lista acima, ou {\"tool\": null}."
+            )
+            decision = await self._decide_tool(retry_prompt, prompt)
+            chosen, args, well_formed = self._extract_tool(decision)
+
+        if not (chosen and chosen in tool_names):
+            if not well_formed or (chosen and chosen not in tool_names):
+                log_event("warning", "orchestrator",
+                          f"tool-selection falhou após retry (decisão: {decision[:200]!r})")
+            return await self._synthesize_no_tool(prompt, history)
+
+        spec = self.registry.get(chosen)
+        missing = [a for a in spec.required_args if not str(args.get(a) or "").strip()]
+        if missing:
+            log_event("info", "orchestrator",
+                      f"{chosen}: faltam args {missing} — pedindo esclarecimento")
+            joined = ", ".join(missing)
+            return (
+                f"Pra usar **{chosen}** preciso que você informe: {joined}. "
+                "Pode reescrever o pedido com esse dado?"
+            )
+
+        if spec.requires_confirmation and settings.safe_mode != "advanced":
+            return await self._request_confirmation(prompt, history, chosen, args)
+        if spec.requires_confirmation:
+            log_event("warning", "orchestrator",
+                      f"{chosen} executado sem confirmação (safe_mode=advanced): {args}")
+        return await self._run_chosen(prompt, history, chosen, args)
+
+    async def _decide_tool(self, system_prompt: str, user_prompt: str) -> str:
+        decide = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        decision = (await self.provider.complete(decide, json_mode=True)).strip()
+        log_event("info", "orchestrator", f"decisão LLM: {decision[:200]!r}")
+        return decision
+
+    async def _request_confirmation(
+        self, prompt: str, history: list[dict[str, str]], tool: str, args: dict
+    ) -> str:
+        summary = await self._summarize_action(tool, args)
+        action = await self.store.register(tool, args, prompt, summary)
+        self.last_pending = {
+            "id": action.id,
+            "tool": tool,
+            "summary": summary,
+            "args": {k: v for k, v in args.items() if k != "password"},
+        }
+        log_event("warning", "confirmation",
+                  f"ação {action.id} requer confirmação: {tool} {args}")
+        return (
+            f"⚠️ Preciso da sua autorização para executar: **{tool}** — {summary}. "
+            f"Aprovar ou negar no painel."
+        )
+
+    async def _summarize_action(self, tool: str, args: dict) -> str:
+        """Pedido curto em pt-BR da ação que será executada."""
+        # Mostra os args não sigilosos (sem passwords/tokens).
+        visible = {k: v for k, v in args.items() if k != "password"}
+        messages = [
+            {"role": "system", "content": (
+                "Descreva EM UMA FRASE curta (máx 15 palavras), em português "
+                "simples, a ação que a ferramenta fará, citando o alvo. "
+                "Ex: 'Escaneia portas e serviços do host 10.0.0.5 com nmap'."
+            )},
+            {"role": "user", "content": f"Ferramenta: {tool}. Argumentos: {visible}"},
+        ]
+        try:
+            text = (await self.provider.complete(messages, max_tokens=30)).strip()
+            return re.sub(r"[\r\n]+", " ", text)[:160]
+        except Exception:
+            return f"{tool} com {visible}"
+
+    async def _run_chosen(
+        self, prompt: str, history: list[dict[str, str]], chosen: str, args: dict
+    ) -> str:
+        t0 = time.monotonic()
+        try:
+            result = sanitize_text(await self.registry.run(chosen, args))
+        except Exception as exc:  # tool itself failed → explain the error
+            dur = round(time.monotonic() - t0, 3)
+            self.last_tool_calls.append({"tool": chosen, "status": "error"})
+            log_tool("tool", tool=chosen, status="error", duration=dur, error=_describe_exception(exc))
+            log_event("warning", "tool", f"{chosen}: {_describe_exception(exc)}")
+            return f"⚠️ Não consegui consultar {chosen}: {_describe_exception(exc)}"
+
+        dur = round(time.monotonic() - t0, 3)
+        ctx = AgentContext(prompt=prompt, history=history)
+        ctx.tool_calls.append({"tool": chosen, "result": result})
+        self.last_tool_calls.append({"tool": chosen, "status": "ok", "result": result[:500]})
+        log_tool("tool", tool=chosen, status="ok", duration=dur, result=result)
+        # Tool succeeded — a synthesis failure past this point must not
+        # swallow the real result (LLM timeout ≠ tool failure).
+        try:
+            return await self._synthesize(ctx, chosen, result)
+        except Exception as exc:
+            return f"{result}\n\n(síntese indisponível: {_describe_exception(exc)})"
+
+    async def synthesize_approved(self, action_id: int) -> str:
+        """LLM interpreta o resultado de uma ação aprovada."""
+        from tools.confirm import PendingAction
+        action = self.store.get(action_id)
+        if not isinstance(action, PendingAction) or action.status != "approved":
+            return "⚠️ Ação não encontrada ou não aprovada."
+        try:
+            text = action.future.result()
+        except Exception:
+            return "⚠️ Resultado da ação não disponível."
+        if text.startswith(("⚠️", "⛔")):
+            return text
+        messages = [
+            {"role": "system", "content": (
+                "Explique em português simples o resultado de uma ferramenta "
+                "de auditoria. Cite dados reais. Estruture: o que a ferramenta "
+                "encontrou, o que isso significa, e uma sugestão. NUNCA invente "
+                "dados ausentes."
+            )},
+            {"role": "user", "content": f"Ação aprovada: {action.tool} {action.args}\n\nResultado:\n{_truncate_for_synthesis(text)}"},
+        ]
+        try:
+            return (await self.provider.complete(messages)).strip()
+        except Exception as exc:
+            return f"{text}\n\n(síntese indisponível: {_describe_exception(exc)})"
+
+    def _extract_tool(self, decision: str) -> tuple[str | None, dict, bool]:
+        """Returns (tool, args, well_formed). well_formed=False means the
+        model's output could not be parsed as JSON at all (garbled, not a
+        deliberate {"tool": null}) — the caller uses this to decide whether
+        a retry is worth it."""
+        if not decision:
+            return None, {}, False
+        # If the model wrapped the JSON in a code fence, unwrap it.
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)```", decision)
+        if match:
+            decision = match.group(1)
+        try:
+            data = json.loads(decision)
+        except json.JSONDecodeError:
+            match = re.search(r'"tool"\s*:\s*"?([a-z_]+)"?', decision)
+            return (match.group(1) if match else None), {}, bool(match)
+        tool = data.get("tool")
+        if not isinstance(tool, str) or not tool:
+            return None, {}, True
+        args = data.get("args")
+        if isinstance(args, dict):
+            args = {str(k): (str(v) if v is not None else "") for k, v in args.items()}
+        else:
+            args = {}
+        return tool, args, True
+
+    async def _synthesize(self, ctx: AgentContext, tool: str, result: str) -> str:
+        messages = [
+            {"role": "system", "content": (
+                "You analyze the REAL tool output and explain it in simple "
+                "Portuguese (pt-BR). Use the actual data from the result — "
+                "cite real interface names, IPs and values. NEVER invent or "
+                "make up data that is not present in the tool output. "
+                "Structure: breve explicação, dados reais, o que significam, "
+                "sugestão. If the user asked a question, answer it directly "
+                "using the real data."
+            )},
+            {"role": "user", "content": f"Pergunta: {ctx.prompt}\n\nResultado real da ferramenta {tool}:\n{_truncate_for_synthesis(result)}"},
+        ]
+        return (await self.provider.complete(messages)).strip()
+
+    async def _synthesize_no_tool(self, prompt: str, history: list[dict[str, str]]) -> str:
+        messages = [
+            {"role": "system", "content": (
+                "Você é o Cyber, pentester profissional e administrador Linux. "
+                "Responda em português claro, direto, sem disclaimers. Seja didático."
+                f"{_memory_snippet()}"
+            )},
+            *history[-6:],
+            {"role": "user", "content": prompt},
+        ]
+        return (await self.provider.complete(messages)).strip()

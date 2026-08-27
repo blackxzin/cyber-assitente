@@ -1,0 +1,78 @@
+{
+  "source": "Gemini_Generated_Image_h6lwjph6lwjph6lw.png",
+  "note": "Frames extracted from the supplied character sheet. Background checkerboard removed where detected.",
+  "categories": {
+    "idle": {
+      "frames": 6,
+      "canvas_size": [
+        78,
+        198
+      ],
+      "suggested_fps": 6
+    },
+    "expressions": {
+      "frames": 14,
+      "canvas_size": [
+        98,
+        148
+      ],
+      "suggested_fps": 1
+    },
+    "listening": {
+      "frames": 3,
+      "canvas_size": [
+        83,
+        103
+      ],
+      "suggested_fps": 5
+    },
+    "thinking": {
+      "frames": 3,
+      "canvas_size": [
+        86,
+        103
+      ],
+      "suggested_fps": 4
+    },
+    "speaking": {
+      "frames": 7,
+      "canvas_size": [
+        86,
+        123
+      ],
+      "suggested_fps": 10
+    },
+    "working": {
+      "frames": 6,
+      "canvas_size": [
+        108,
+        128
+      ],
+      "suggested_fps": 7
+    },
+    "alert": {
+      "frames": 3,
+      "canvas_size": [
+        78,
+        133
+      ],
+      "suggested_fps": 5
+    },
+    "sleep": {
+      "frames": 4,
+      "canvas_size": [
+        123,
+        103
+      ],
+      "suggested_fps": 3
+    },
+    "walk": {
+      "frames": 7,
+      "canvas_size": [
+        93,
+        193
+      ],
+      "suggested_fps": 8
+    }
+  }
+}
