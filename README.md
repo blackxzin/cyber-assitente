@@ -198,13 +198,19 @@ Atalhos do overlay: `Ctrl+Shift+M` = voz PTT · `Ctrl+Shift+V` = ela olha a tela
 ./.venv/bin/pip install -r requirements-dev.txt
 ./.venv/bin/python -m pytest              # validação de entrada + fluxo de confirmação
 ./.venv/bin/python tests/test_safety.py   # self-check do Safety Layer + Executor
+./.venv/bin/python -m pytest --cov=backend --cov-report=term-missing  # cobertura
+./.venv/bin/python -m pytest -m integration tests/test_*_integration.py  # binário real (opt-in)
 ```
 
 Cobrem: allowlist, denylist, comandos desconhecidos, execução bloqueada,
 sanitização de segredos, ferramentas confirmáveis (registro, risco,
 validação de CPF/host/interface contra flag-injection), e o fluxo de
 aprovação humana (`ConfirmationStore`: registrar, aprovar, negar, expirar).
-CI roda essa suíte a cada push/PR (`.github/workflows/tests.yml`).
+CI roda a suíte + gate de cobertura mínima (80%, `--cov-fail-under=80`) a
+cada push/PR (`.github/workflows/tests.yml`). `services/audio.py`,
+`services/screen.py` e `backend/run.py` ficam abaixo da média (hardware
+real — mic/TTS, captura de tela — e script de entrypoint, sem lógica pra
+testar isoladamente); o resto do código fica bem acima dos 80%.
 
 ---
 

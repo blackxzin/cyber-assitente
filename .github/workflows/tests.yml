@@ -20,6 +20,8 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run pytest
         run: pytest
+      - name: Check test coverage (min 80%)
+        run: pytest --cov=backend --cov-report=term-missing --cov-fail-under=80
       - name: Run safety self-check
         run: python tests/test_safety.py
       - name: Bandit static security scan

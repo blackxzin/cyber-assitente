@@ -6,6 +6,9 @@ logs/
 .env
 overlay/node_modules/
 *.pcapng
+.coverage
+.coverage.*
+htmlcov/
 /tmp/
 burp-extension/out/
 burp-extension/*.jar
