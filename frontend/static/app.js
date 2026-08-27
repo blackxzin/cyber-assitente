@@ -23,7 +23,8 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (btn.dataset.view === "security") loadSecurity();
     if (btn.dataset.view === "logs") loadLogs();
     if (btn.dataset.view === "memory") { loadMemory(); loadLearning(); }
-    if (btn.dataset.view === "settings") { loadSettings(); loadScope(); }
+    if (btn.dataset.view === "settings") { loadSettings(); }
+    if (btn.dataset.view === "scope") { loadScope(); }
   });
 });
 
@@ -233,6 +234,14 @@ async function termExec() {
 }
 
 // ---- dashboard ----
+function updateAlertBadge(n) {
+  $("#dash-alerts").textContent = n === 0 ? "🟢 0" : "🟡 " + n;
+  $("#dash-alerts").style.color = n === 0 ? "var(--ok)" : "var(--warn)";
+  const badge = $("#nav-alert-badge");
+  badge.textContent = n;
+  badge.classList.toggle("hidden", n === 0);
+}
+
 async function loadDashboard() {
   try {
     const r = await fetch("/api/system");
@@ -240,25 +249,76 @@ async function loadDashboard() {
     $("#dash-mem-detail").textContent = d.memory;
     $("#dash-disk-detail").textContent = d.disk;
     const counts = d.alerts || {};
-    const n = Object.values(counts).reduce((a, b) => a + b, 0);
-    $("#dash-alerts").textContent = n === 0 ? "🟢 0" : "🟡 " + n;
-    $("#dash-alerts").style.color = n === 0 ? "var(--ok)" : "var(--warn)";
+    updateAlertBadge(Object.values(counts).reduce((a, b) => a + b, 0));
     $("#dash-mem").textContent = d.mem_percent != null ? d.mem_percent + "%" : "—";
     $("#dash-disk").textContent = d.disk_percent != null ? d.disk_percent + "%" : "—";
     $("#dash-cpu").textContent = d.cpu_percent != null ? d.cpu_percent + "%" : "—";
   } catch (err) {
     toast("Dashboard: " + err.message);
   }
+  loadAlertsList();
+}
+
+const _SEVERITY_ICON = { high: "🔴", medium: "🟡", low: "🔵" };
+
+async function loadAlertsList() {
+  try {
+    const r = await fetch("/api/alerts");
+    const d = await r.json();
+    $("#alerts-list").innerHTML = d.alerts.length
+      ? d.alerts.map((a) => `
+          <div class="tool alert-item${a.acknowledged ? " acked" : ""}">
+            <div class="alert-item-head">
+              ${_SEVERITY_ICON[a.severity] || "⚪"} <b>${esc(a.title)}</b>
+              <span class="muted"> · ${esc(a.created_at.slice(0, 16).replace("T", " "))}</span>
+              ${a.acknowledged ? "" : `<button class="btn ghost alert-ack" data-id="${a.id}">Reconhecer</button>`}
+            </div>
+            <div class="muted alert-item-desc">${esc(a.description)}</div>
+          </div>`).join("")
+      : `<p class="muted">Nenhum alerta registrado ainda.</p>`;
+    $("#alerts-list").querySelectorAll(".alert-ack").forEach((btn) => {
+      btn.addEventListener("click", () => ackAlert(btn.dataset.id));
+    });
+  } catch (err) {
+    toast("Alertas: " + err.message);
+  }
+}
+
+async function ackAlert(id) {
+  try {
+    const r = await fetch("/api/alerts/ack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: Number(id) }),
+    });
+    if (!r.ok) throw new Error("falha ao reconhecer");
+    loadDashboard();
+  } catch (err) {
+    toast("Alertas: " + err.message);
+  }
 }
 
 // ---- security ----
+const _CATEGORY_ORDER = [
+  "ofensivo", "exploração", "engenharia-reversa", "osint", "burp",
+  "rede", "sistema", "diagnóstico", "memória", "geral",
+];
+
 async function loadSecurity() {
   try {
     const r = await fetch("/api/tools");
     const d = await r.json();
-    $("#tools-list").innerHTML = d.tools
-      .map((t) => `<div class="tool"><b>${esc(t.name)}</b> · ${esc(t.description)} <span class="muted">[risco: ${t.risk}]</span></div>`)
-      .join("");
+    const groups = {};
+    for (const t of d.tools) (groups[t.category] || (groups[t.category] = [])).push(t);
+    const cats = Object.keys(groups).sort((a, b) => {
+      const ia = _CATEGORY_ORDER.indexOf(a), ib = _CATEGORY_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    $("#tools-list").innerHTML = cats.map((cat) => `
+      <div class="tool-group">
+        <div class="tool-group-title">${esc(cat)}</div>
+        ${groups[cat].map((t) => `<div class="tool"><b>${esc(t.name)}</b> · ${esc(t.description)} <span class="muted">[risco: ${t.risk}]</span></div>`).join("")}
+      </div>`).join("");
   } catch (err) {
     toast("Ferramentas: " + err.message);
   }
@@ -536,4 +596,5 @@ $("#confirm-modal").addEventListener("click", (e) => {
   }
   $("#character").style.display = state.charOn ? "" : "none";
   $("#char-stage").style.width = state.scale + "px";
+  loadDashboard();  // aba inicial ativa — sem isso ficava com placeholders até trocar de aba
 })();

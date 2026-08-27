@@ -23,6 +23,9 @@ class ToolSpec:
     # acts on — used by security/scope.py to gate against the authorized
     # scope. None means the tool has no network target (e.g. cpf_osint).
     target_arg: str | None = None
+    # Display-only grouping for the frontend (Segurança lista por categoria
+    # em vez de lista plana) — não afeta execução/confirmação/escopo.
+    category: str = "geral"
 
 
 class ToolRegistry:

@@ -338,4 +338,5 @@ def register(registry) -> None:
         ("burp_find_vulnerabilities", "Varre o Proxy history do Burp procurando vulnerabilidades (SQLi refletido, XSS refletido, cookie inseguro, banner de versão, stack trace, headers de segurança ausentes). 'max_pages' opcional.", tool_burp_find_vulnerabilities, ()),
         ("burp_send_request", "Envia uma requisição HTTP através do Burp Suite, como no Repeater (informe 'url'; 'method', 'headers' e 'body' opcionais).", tool_burp_send_request, ("url",)),
     ):
-        registry.register(name, desc, fn, risk="moderate", requires_confirmation=True, required_args=required)
+        registry.register(name, desc, fn, risk="moderate", requires_confirmation=True,
+                          required_args=required, category="burp")

@@ -206,7 +206,10 @@ async def chat(body: dict):
 # --- Tools ---
 @app.get("/api/tools")
 async def list_tools() -> dict:
-    return {"tools": [{"name": t.name, "description": t.description, "risk": t.risk} for t in _registry.list()]}
+    return {"tools": [
+        {"name": t.name, "description": t.description, "risk": t.risk, "category": t.category}
+        for t in _registry.list()
+    ]}
 
 
 # --- Controlled terminal ---

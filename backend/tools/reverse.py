@@ -151,4 +151,5 @@ def register(registry) -> None:
     ):
         # Leitura local de arquivo apontado pelo operador — não toca alvo remoto,
         # mesma categoria de risco das tools de leitura de sistema: sem confirmação.
-        registry.register(name, desc, fn, risk="info", requires_confirmation=False)
+        registry.register(name, desc, fn, risk="info", requires_confirmation=False,
+                          category="engenharia-reversa")

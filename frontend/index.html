@@ -18,11 +18,16 @@
         </div>
       </div>
       <nav id="nav">
-        <button class="nav-item active" data-view="dashboard"><span>📊</span> Dashboard</button>
+        <button class="nav-item active" data-view="dashboard">
+          <span>📊</span> Dashboard
+          <span id="nav-alert-badge" class="nav-badge hidden">0</span>
+        </button>
         <button class="nav-item" data-view="chat"><span>💬</span> Chat</button>
         <button class="nav-item" data-view="terminal"><span>⌨️</span> Terminal</button>
         <button class="nav-item" data-view="memory"><span>🧠</span> Memória</button>
+        <div class="nav-divider"></div>
         <button class="nav-item" data-view="security"><span>🛡</span> Segurança</button>
+        <button class="nav-item" data-view="scope"><span>🎯</span> Escopo</button>
         <button class="nav-item" data-view="logs"><span>📜</span> Logs</button>
         <button class="nav-item" data-view="settings"><span>⚙️</span> Configurações</button>
       </nav>
@@ -59,6 +64,11 @@
           <div class="card glass"><div class="card-title">Alertas</div><div id="dash-alerts" class="card-value">—</div></div>
           <div class="card glass wide"><div class="card-title">Memória detalhada</div><pre id="dash-mem-detail" class="pre"></pre></div>
           <div class="card glass wide"><div class="card-title">Disco detalhado</div><pre id="dash-disk-detail" class="pre"></pre></div>
+          <div class="card glass wide">
+            <div class="card-title">Alertas do watcher</div>
+            <p class="muted">Porta nova aberta, disco cheio, diff de scan — gerados sozinhos em segundo plano.</p>
+            <div id="alerts-list" class="tools"></div>
+          </div>
         </div>
       </section>
 
@@ -116,6 +126,22 @@
         </div>
       </section>
 
+      <!-- Scope view -->
+      <section id="view-scope" class="view">
+        <header class="view-header"><h1>🎯 Escopo autorizado</h1></header>
+        <div class="card glass wide">
+          <p class="muted">Ferramentas ofensivas (nmap, sqlmap, hydra, gobuster, nikto) só rodam contra
+            alvos declarados aqui. Vazio = sem restrição (comportamento padrão). Um alvo por linha ou
+            separado por vírgula — IP, CIDR (<code>10.0.0.0/24</code>) ou domínio
+            (<code>example.com</code> cobre subdomínios).</p>
+          <form id="scope-form">
+            <textarea id="scope-input" rows="4" placeholder="ex: 10.0.0.0/24, example.com"></textarea>
+            <button class="btn">Salvar escopo</button>
+          </form>
+          <div id="scope-list" class="tools"></div>
+        </div>
+      </section>
+
       <!-- Logs view -->
       <section id="view-logs" class="view">
         <header class="view-header"><h1>Logs</h1></header>
@@ -147,18 +173,6 @@
           <div class="row">
             <label>Tamanho <input type="range" id="set-scale" min="40" max="160" value="90" /></label>
           </div>
-        </div>
-        <div class="card glass wide">
-          <div class="card-title">🎯 Escopo autorizado</div>
-          <p class="muted">Ferramentas ofensivas (nmap, sqlmap, hydra, gobuster, nikto) só rodam contra
-            alvos declarados aqui. Vazio = sem restrição (comportamento padrão). Um alvo por linha ou
-            separado por vírgula — IP, CIDR (<code>10.0.0.0/24</code>) ou domínio
-            (<code>example.com</code> cobre subdomínios).</p>
-          <form id="scope-form">
-            <textarea id="scope-input" rows="4" placeholder="ex: 10.0.0.0/24, example.com"></textarea>
-            <button class="btn">Salvar escopo</button>
-          </form>
-          <div id="scope-list" class="tools"></div>
         </div>
       </section>
     </main>

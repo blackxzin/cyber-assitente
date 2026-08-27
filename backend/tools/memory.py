@@ -45,6 +45,7 @@ def register(registry: ToolRegistry) -> None:
         risk="info",
         requires_confirmation=False,
         required_args=("content",),
+        category="memória",
     )
     registry.register(
         "recall",
@@ -52,4 +53,5 @@ def register(registry: ToolRegistry) -> None:
         tool_recall,
         risk="info",
         requires_confirmation=False,
+        category="memória",
     )

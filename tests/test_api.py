@@ -44,6 +44,20 @@ def test_list_tools_includes_confirmable_ones(client):
     } <= names
 
 
+def test_tools_expose_category_for_ui_grouping(client):
+    r = client.get("/api/tools")
+    by_name = {t["name"]: t["category"] for t in r.json()["tools"]}
+    assert by_name["nmap_scan"] == "ofensivo"
+    assert by_name["cpf_osint"] == "osint"
+    assert by_name["searchsploit_lookup"] == "exploração"
+    assert by_name["re_file_info"] == "engenharia-reversa"
+    assert by_name["burp_proxy_history"] == "burp"
+    assert by_name["system_info"] == "sistema"
+    assert by_name["network_interfaces"] == "rede"
+    assert by_name["local_ports"] == "diagnóstico"
+    assert by_name["remember"] == "memória"
+
+
 def test_system_summary_has_percent_fields(client):
     r = client.get("/api/system")
     assert r.status_code == 200

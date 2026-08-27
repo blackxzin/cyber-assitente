@@ -87,4 +87,5 @@ def register(registry) -> None:
         ("recent_logs", "Mostra os últimos eventos de segurança registrados no banco.", tool_recent_logs),
     ):
         required = ("host",) if name == "connectivity" else ()
-        registry.register(name, desc, fn, risk="info", requires_confirmation=False, required_args=required)
+        registry.register(name, desc, fn, risk="info", requires_confirmation=False,
+                          required_args=required, category="diagnóstico")

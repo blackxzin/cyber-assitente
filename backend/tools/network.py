@@ -50,6 +50,7 @@ def register(registry: ToolRegistry) -> None:
         tool_network_interfaces,
         risk="info",
         requires_confirmation=False,
+        category="rede",
     )
     registry.register(
         "network_routes",
@@ -57,6 +58,7 @@ def register(registry: ToolRegistry) -> None:
         tool_network_routes,
         risk="info",
         requires_confirmation=False,
+        category="rede",
     )
     registry.register(
         "dns_servers",
@@ -64,4 +66,5 @@ def register(registry: ToolRegistry) -> None:
         tool_dns_servers,
         risk="info",
         requires_confirmation=False,
+        category="rede",
     )

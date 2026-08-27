@@ -58,6 +58,16 @@ html, body {
   color: var(--accent);
   box-shadow: inset 2px 0 0 var(--accent);
 }
+.nav-divider { height: 1px; background: var(--line); margin: 8px 6px; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--warn); color: #1a1206;
+  font-size: 0.68rem; font-weight: 700;
+  border-radius: 999px; min-width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 5px;
+}
+.nav-badge.hidden { display: none; }
 .sidebar-foot { margin-top: auto; padding: 8px; }
 .badge {
   font-size: 0.72rem; color: var(--muted);
@@ -173,6 +183,18 @@ a.btn { display: inline-block; text-decoration: none; }
 .tool { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.82rem; }
 .tool b { color: var(--accent); }
 .tool.out-of-scope { border-color: var(--danger, #f43f5e); }
+
+.tool-group + .tool-group { margin-top: 14px; }
+.tool-group-title {
+  color: var(--muted); font-size: 0.7rem; letter-spacing: 1.5px;
+  text-transform: uppercase; margin-bottom: 6px;
+  border-bottom: 1px solid var(--line); padding-bottom: 4px;
+}
+
+.alert-item.acked { opacity: 0.5; }
+.alert-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.alert-item-desc { margin-top: 4px; }
+.alert-ack { margin-left: auto; font-size: 0.75rem; padding: 4px 10px; }
 
 /* Scope form */
 #scope-form { display: flex; flex-direction: column; gap: 10px; }

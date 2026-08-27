@@ -130,6 +130,7 @@ def register(registry) -> None:
         tool_system_info,
         risk="info",
         requires_confirmation=False,
+        category="sistema",
     )
     registry.register(
         "memory_info",
@@ -137,6 +138,7 @@ def register(registry) -> None:
         tool_memory_info,
         risk="info",
         requires_confirmation=False,
+        category="sistema",
     )
     registry.register(
         "disk_info",
@@ -144,6 +146,7 @@ def register(registry) -> None:
         tool_disk_info,
         risk="info",
         requires_confirmation=False,
+        category="sistema",
     )
     registry.register(
         "process_list",
@@ -151,4 +154,5 @@ def register(registry) -> None:
         tool_process_list,
         risk="info",
         requires_confirmation=False,
+        category="sistema",
     )
