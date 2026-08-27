@@ -27,6 +27,12 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - `packet_capture` — captura tráfego (`dumpcap`) e resume com `tshark`;
   - `cpf_osint` — mapeia contas associadas a um CPF (usa o [cpfFinder](https://github.com/p1ngul1n0/cpfFinder));
   - `burp_proxy_history` / `burp_send_request` — lê histórico do proxy e reenvia requisições via a ponte com o Burp Suite.
+- **Engenharia reversa** de binário/malware/firmware local (sem confirmação — arquivo local
+  apontado pelo operador, não toca alvo remoto): `re_file_info` (tipo/arquitetura via `file`),
+  `re_strings` (strings impressas, com filtro), `re_symbols` (`nm`, cai pra `readelf` se strip),
+  `re_headers` (cabeçalho ELF + seções), `re_disasm` (disassembly Intel via `objdump`, função
+  específica opcional), `re_analyze` (análise automática + funções via radare2, se instalado —
+  `pacman -S radare2` no Arch).
 - **Ferramentas de leitura** (sem confirmação): interfaces, rotas, DNS, portas locais, serviços systemd, conectividade, logs de segurança, CPU/RAM/disco/processos.
 - **Voz**: botão de mic na UI web e PTT no overlay desktop (`Ctrl+Shift+M`) — transcrição local (faster-whisper) e fala local (espeak-ng).
 - **Overlay desktop**: personagem animada em janela transparente (Electron + Hyprland), estados
