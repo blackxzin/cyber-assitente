@@ -15,6 +15,7 @@ from tools.reverse import (
     tool_re_headers,
     tool_re_strings,
     tool_re_symbols,
+    tool_re_yara_scan,
 )
 
 
@@ -187,3 +188,88 @@ async def test_re_analyze_handles_missing_binary_gracefully(tmp_path, monkeypatc
 async def test_run_missing_binary_returns_friendly_error():
     result = await reverse._run(["nao-existe-binario-xyz-re"])
     assert result == "erro: ferramenta não encontrada (nao-existe-binario-xyz-re)"
+
+
+# --- re_yara_scan (triagem estática — nunca executa a amostra) ---
+
+async def test_re_yara_scan_rejects_missing_path():
+    result = await tool_re_yara_scan({})
+    assert result.startswith("Uso:")
+
+
+async def test_re_yara_scan_errors_when_no_rules_given_and_no_default_found(tmp_path, monkeypatch):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    monkeypatch.setattr(reverse, "_YARA_RULES_DEFAULTS", ("/nao/existe/index.yar",))
+    result = await tool_re_yara_scan({"path": str(f)})
+    assert result.startswith("Uso:")
+    assert "ruleset padrão" in result
+
+
+async def test_re_yara_scan_rejects_nonexistent_rules_file(tmp_path):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    result = await tool_re_yara_scan({"path": str(f), "rules": str(tmp_path / "nao-existe.yar")})
+    assert result.startswith("arquivo de regras não encontrado")
+
+
+async def test_re_yara_scan_uses_explicit_rules_over_default(tmp_path, monkeypatch):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    rules = tmp_path / "custom.yar"
+    rules.write_text("rule dummy { condition: true }")
+    captured = {}
+
+    async def fake_run(argv, timeout=None):
+        captured["argv"] = argv
+        return "dummy " + str(f)
+
+    monkeypatch.setattr(reverse, "_run", fake_run)
+    result = await tool_re_yara_scan({"path": str(f), "rules": str(rules)})
+    assert result == "dummy " + str(f)
+    assert captured["argv"] == ["yara", "-s", "-w", str(rules), str(f)]
+
+
+async def test_re_yara_scan_falls_back_to_default_ruleset(tmp_path, monkeypatch):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    default_rules = tmp_path / "index.yar"
+    default_rules.write_text("rule dummy { condition: true }")
+    monkeypatch.setattr(reverse, "_YARA_RULES_DEFAULTS", (str(default_rules),))
+    captured = {}
+
+    async def fake_run(argv, timeout=None):
+        captured["argv"] = argv
+        return "ok"
+
+    monkeypatch.setattr(reverse, "_run", fake_run)
+    await tool_re_yara_scan({"path": str(f)})
+    assert str(default_rules) in captured["argv"]
+
+
+async def test_re_yara_scan_no_match_reports_clearly(tmp_path, monkeypatch):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    rules = tmp_path / "r.yar"
+    rules.write_text("rule dummy { condition: false }")
+
+    async def fake_run(argv, timeout=None):
+        return ""  # yara não imprime nada quando nenhuma regra casa
+
+    monkeypatch.setattr(reverse, "_run", fake_run)
+    result = await tool_re_yara_scan({"path": str(f), "rules": str(rules)})
+    assert "nenhuma regra casou" in result
+
+
+async def test_re_yara_scan_handles_missing_binary_gracefully(tmp_path, monkeypatch):
+    f = tmp_path / "s.bin"
+    f.write_bytes(b"x")
+    rules = tmp_path / "r.yar"
+    rules.write_text("rule dummy { condition: true }")
+
+    async def fake_run(argv, timeout=None):
+        return "erro: ferramenta não encontrada (yara)"
+
+    monkeypatch.setattr(reverse, "_run", fake_run)
+    result = await tool_re_yara_scan({"path": str(f), "rules": str(rules)})
+    assert result.startswith("erro:")

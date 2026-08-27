@@ -17,6 +17,7 @@ from tools.reverse import (
     tool_re_headers,
     tool_re_strings,
     tool_re_symbols,
+    tool_re_yara_scan,
 )
 
 pytestmark = pytest.mark.integration
@@ -79,3 +80,36 @@ async def test_re_headers_shows_elf_header(compiled_binary):
 async def test_re_disasm_of_named_function(compiled_binary):
     out = await tool_re_disasm({"path": str(compiled_binary), "symbol": "named_function"})
     assert "named_function" in out
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None or shutil.which("yara") is None,
+                     reason="gcc/yara não instalados")
+async def test_re_yara_scan_matches_real_rule_against_embedded_marker(compiled_binary, tmp_path):
+    rules = tmp_path / "test.yar"
+    rules.write_text("""
+rule cyber_test_marker {
+    strings:
+        $marker = "CYBER_REVERSE_TEST_MARKER_xyz789"
+    condition:
+        $marker
+}
+""")
+    out = await tool_re_yara_scan({"path": str(compiled_binary), "rules": str(rules)})
+    assert "cyber_test_marker" in out
+    assert not out.lower().startswith("erro")
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None or shutil.which("yara") is None,
+                     reason="gcc/yara não instalados")
+async def test_re_yara_scan_no_match_against_real_binary(compiled_binary, tmp_path):
+    rules = tmp_path / "test.yar"
+    rules.write_text("""
+rule never_matches {
+    strings:
+        $x = "STRING_QUE_NAO_EXISTE_NO_BINARIO_abc123"
+    condition:
+        $x
+}
+""")
+    out = await tool_re_yara_scan({"path": str(compiled_binary), "rules": str(rules)})
+    assert "nenhuma regra casou" in out

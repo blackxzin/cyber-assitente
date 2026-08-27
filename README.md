@@ -32,7 +32,9 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   `re_strings` (strings impressas, com filtro), `re_symbols` (`nm`, cai pra `readelf` se strip),
   `re_headers` (cabeçalho ELF + seções), `re_disasm` (disassembly Intel via `objdump`, função
   específica opcional), `re_analyze` (análise automática + funções via radare2, se instalado —
-  `pacman -S radare2` no Arch).
+  `pacman -S radare2` no Arch), `re_yara_scan` (triagem de malware por regra YARA — casamento de
+  padrão/assinatura, nunca executa a amostra; requer `pacman -S yara`, repo oficial `extra`; sem
+  `rules` explícito tenta um índice padrão do sistema, ex: `/usr/share/yara-rules/index.yar`).
 - **Ferramentas de leitura** (sem confirmação): interfaces, rotas, DNS, portas locais, serviços systemd, conectividade, logs de segurança, CPU/RAM/disco/processos.
 - **Voz**: botão de mic na UI web e PTT no overlay desktop (`Ctrl+Shift+M`) — transcrição local (faster-whisper) e fala local (espeak-ng).
 - **Overlay desktop**: personagem animada em janela transparente (Electron + Hyprland), estados

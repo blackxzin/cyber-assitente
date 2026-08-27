@@ -1,12 +1,14 @@
 """Ferramentas de engenharia reversa (binário/malware/firmware): tipo de
-arquivo, strings, símbolos, cabeçalho ELF, disassembly e análise
-automática (radare2, se instalado).
+arquivo, strings, símbolos, cabeçalho ELF, disassembly, análise
+automática (radare2, se instalado) e triagem por regra YARA.
 
 Diferente de tools/pentest.py, estas não tocam nenhum alvo remoto — só
 inspecionam um arquivo local que o operador aponta (amostra de malware,
 binário baixado, firmware extraído). Por isso não exigem confirmação
 humana: mesma categoria de risco das ferramentas de leitura de sistema.
-"""
+
+Tudo aqui é análise ESTÁTICA — lê/parseia bytes do arquivo, nunca executa
+a amostra (inclusive YARA: casamento de padrão, não detonação)."""
 
 import asyncio
 
@@ -140,6 +142,40 @@ async def tool_re_analyze(args: dict) -> str:
     return out or f"r2 {path}: sem saída."
 
 
+# Locais comuns de um ruleset YARA "index" (arquivo raiz que puxa o resto
+# via 'include') — pacote yara-rules do AUR ou clone manual do repositório
+# github.com/Yara-Rules/rules costumam cair num desses.
+_YARA_RULES_DEFAULTS = (
+    "/usr/share/yara-rules/index.yar",
+    "/usr/share/yara/index.yar",
+    "/opt/yara-rules/index.yar",
+    str(Path.home() / "yara-rules" / "index.yar"),
+)
+
+
+async def tool_re_yara_scan(args: dict) -> str:
+    """Casa regras YARA contra o arquivo (triagem de malware por padrão/
+    assinatura — nunca executa a amostra). 'rules' opcional: caminho de um
+    arquivo .yar/.yara (pode usar 'include' pra puxar mais regras); sem
+    isso, tenta um ruleset padrão do sistema. Requer yara instalado
+    (AUR/`pacman -S yara` no Arch)."""
+    path, err = _validate_path(str(args.get("path") or ""))
+    if err:
+        return err
+    rules = str(args.get("rules") or "").strip()
+    if not rules:
+        rules = next((r for r in _YARA_RULES_DEFAULTS if Path(r).is_file()), "")
+    if not rules:
+        return ("Uso: informe 'rules' (caminho de um arquivo .yar/.yara) — nenhum "
+                "ruleset padrão encontrado no sistema.")
+    if not Path(rules).is_file():
+        return f"arquivo de regras não encontrado: {rules!r}"
+    out = await _run(["yara", "-s", "-w", rules, str(path)], timeout=60)
+    if out.startswith("erro"):
+        return out
+    return out or f"YARA: nenhuma regra casou com {path.name}."
+
+
 def register(registry) -> None:
     for name, desc, fn in (
         ("re_file_info", "Identifica tipo/arquitetura de um arquivo local (informe 'path').", tool_re_file_info),
@@ -148,6 +184,7 @@ def register(registry) -> None:
         ("re_headers", "Mostra cabeçalho ELF + seções de um binário local (informe 'path').", tool_re_headers),
         ("re_disasm", "Disassembly (objdump, Intel) de um binário local (informe 'path'; 'symbol' opcional).", tool_re_disasm),
         ("re_analyze", "Análise automática radare2 (funções detectadas) de um binário local (informe 'path'; requer radare2 instalado).", tool_re_analyze),
+        ("re_yara_scan", "Triagem de malware por regra YARA num arquivo local (informe 'path'; 'rules' opcional, requer yara instalado).", tool_re_yara_scan),
     ):
         # Leitura local de arquivo apontado pelo operador — não toca alvo remoto,
         # mesma categoria de risco das tools de leitura de sistema: sem confirmação.
