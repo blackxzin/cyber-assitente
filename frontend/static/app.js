@@ -23,6 +23,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (btn.dataset.view === "security") loadSecurity();
     if (btn.dataset.view === "logs") loadLogs();
     if (btn.dataset.view === "memory") { loadMemory(); loadLearning(); }
+    if (btn.dataset.view === "settings") { loadSettings(); loadScope(); }
   });
 });
 
@@ -324,6 +325,59 @@ async function loadLogs() {
 }
 
 // ---- settings ----
+async function loadSettings() {
+  try {
+    const r = await fetch("/api/health");
+    const d = await r.json();
+    const research = d.research_provider
+      ? `<div class="tool"><b>Research</b> · ${esc(d.research_provider)} / ${esc(d.research_model || "?")}
+          <span class="muted">[2° modelo, só planejamento/validação]</span></div>`
+      : `<div class="tool muted">Research provider: não configurado (usa o mesmo modelo pra tudo).</div>`;
+    $("#settings-providers").innerHTML = `
+      <div class="tool"><b>Execução</b> · ${esc(d.provider)} / ${esc(d.model)}
+        <span class="muted">[decide e roda ferramentas]</span></div>
+      ${research}`;
+    $("#set-mode").value = d.safe_mode;
+    state.mode = d.safe_mode;
+  } catch (err) {
+    toast("Configurações: " + err.message);
+  }
+}
+
+// ---- escopo autorizado ----
+async function loadScope() {
+  try {
+    const r = await fetch("/api/scope");
+    const d = await r.json();
+    $("#scope-input").value = d.scope.join("\n");
+    $("#scope-list").innerHTML = d.scope.length
+      ? d.scope.map((p) => `<div class="tool">${esc(p)}</div>`).join("")
+      : `<p class="muted">Sem escopo definido — ferramentas ofensivas rodam contra qualquer alvo.</p>`;
+  } catch (err) {
+    toast("Escopo: " + err.message);
+  }
+}
+
+$("#scope-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const patterns = $("#scope-input").value
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  try {
+    const r = await fetch("/api/scope", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: patterns }),
+    });
+    if (!r.ok) throw new Error("falha ao salvar");
+    toast(patterns.length ? `Escopo salvo (${patterns.length} alvo(s)).` : "Escopo limpo — sem restrição.");
+    loadScope();
+  } catch (err) {
+    toast("Escopo: " + err.message);
+  }
+});
+
 $("#set-char").addEventListener("change", (e) => {
   state.charOn = e.target.checked;
   $("#character").style.display = state.charOn ? "" : "none";

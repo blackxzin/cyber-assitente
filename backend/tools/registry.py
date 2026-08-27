@@ -19,6 +19,10 @@ class ToolSpec:
     # JSON turns into a clarifying question instead of a wasted confirm
     # round-trip or a tool call that fails on missing input.
     required_args: tuple[str, ...] = ()
+    # Which arg key (if any) holds the network target (host/URL) this tool
+    # acts on — used by security/scope.py to gate against the authorized
+    # scope. None means the tool has no network target (e.g. cpf_osint).
+    target_arg: str | None = None
 
 
 class ToolRegistry:

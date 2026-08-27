@@ -17,7 +17,7 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
 - **Ferramentas de auditoria ativa** que **exigem aprovação humana** antes de executar:
   - `nmap_scan` — escaneia portas/serviços de um host (`nmap -sT -sV`, não precisa de root);
   - `sqlmap_scan` — testa injeção SQL numa URL (`sqlmap --batch`);
-  - `hydra_bruteforce` — testa credenciais contra um serviço (ssh/ftp/http/mysql/...), para no primeiro par válido;
+  - `hydra_bruteforce` — testa credenciais contra um serviço (ssh/ftp/http/mysql/...), para no primeiro par válido (porta customizada opcional via `port`);
   - `gobuster_scan` — enumera diretórios/arquivos de uma URL;
   - `nikto_scan` — varre vulnerabilidades web conhecidas numa URL;
   - `packet_capture` — captura tráfego (`dumpcap`) e resume com `tshark`;
@@ -54,6 +54,15 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
 - **Hardening de API**: `API_TOKEN` opcional (header `X-API-Token`, desativado por padrão —
   só relevante se o servidor sair de 127.0.0.1) e rate limit por IP em toda rota `/api/*`
   (`RATE_LIMIT_PER_MINUTE`, padrão 120/min).
+- **Escopo autorizado (opt-in)**: painel "⚙️ Configurações" (`GET/POST /api/scope`) declara
+  os alvos autorizados do engagement (IP, CIDR ou domínio). Vazio (padrão) = sem restrição,
+  mesmo comportamento de sempre. Assim que um escopo é definido, `nmap_scan`/`sqlmap_scan`/
+  `hydra_bruteforce`/`gobuster_scan`/`nikto_scan` recusam alvo fora dele — antes mesmo de
+  pedir confirmação humana, e re-checado de novo no momento da aprovação (o escopo pode
+  ter mudado entre pedir e aprovar).
+- **Relatório de pentest**: botão "📄 Baixar relatório" na aba "🛡 Segurança" (`GET /api/report`)
+  compila as últimas execuções de ferramentas ofensivas + alertas do watcher num Markdown
+  pronto pra arquivar/entregar.
 
 ---
 
@@ -62,7 +71,8 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
 ```
 backend/
 ├── api/          FastAPI: /api/chat (SSE), /api/system, /api/terminal, /api/tools,
-│                 /api/actions/{id}/approve|deny, /api/audio/*, /api/vision…
+│                 /api/actions/{id}/approve|deny, /api/audio/*, /api/vision,
+│                 /api/scope (GET/POST), /api/report…
 ├── ai/
 │   └── providers/  interface LLMProvider (ollama hoje; openai/anthropic/lmstudio depois)
 ├── agents/       Orchestrator + especialistas (system, network, security, learning)

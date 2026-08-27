@@ -26,7 +26,9 @@ from database import db as database
 from security.errors import describe_exception
 from security.logging import log_event
 from security.safety import Risk, classify_action
+from security import scope as scope_module
 from services.chat import ChatService
+from services.report import generate_pentest_report
 from services import watcher
 from tools.confirm import ConfirmationStore
 from tools.terminal import executor
@@ -165,8 +167,11 @@ async def health() -> dict:
         "status": "ok",
         "provider": settings.ai_provider,
         "model": settings.ai_model,
+        "research_provider": settings.research_provider or None,
+        "research_model": settings.research_model or None,
         "safe_mode": settings.safe_mode,
         "tools": [t.name for t in _registry.list()],
+        "authorized_scope": scope_module.get_scope(),
     }
 
 
@@ -279,6 +284,22 @@ async def classify(body: dict) -> dict:
     return {"decision": decision.value, "command": command_verdict, "risk": risk.value}
 
 
+# --- Escopo autorizado (gate opt-in antes de rodar ferramenta ofensiva) ---
+@app.get("/api/scope")
+async def get_scope() -> dict:
+    return {"scope": scope_module.get_scope()}
+
+
+@app.post("/api/scope")
+async def set_scope(body: dict) -> dict:
+    patterns = body.get("scope")
+    if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns):
+        raise HTTPException(status_code=400, detail="'scope' precisa ser uma lista de strings")
+    saved = scope_module.set_scope(patterns)
+    log_event("info", "scope", f"escopo autorizado atualizado: {saved}")
+    return {"scope": saved}
+
+
 # --- History ---
 @app.get("/api/history")
 async def history(limit: int = 12) -> dict:
@@ -330,6 +351,18 @@ async def ack_alert(body: dict) -> dict:
     with database.db() as conn:
         conn.execute("UPDATE alerts SET acknowledged=1 WHERE id=?", (alert_id,))
     return {"ok": True}
+
+
+# --- Relatório de pentest (Markdown, achados + alertas) ---
+@app.get("/api/report")
+async def pentest_report() -> Response:
+    report = generate_pentest_report()
+    filename = f"pentest-report-{time.strftime('%Y%m%d-%H%M%S')}.md"
+    return Response(
+        content=report,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --- Memória longa (fatos guardados via a tool 'remember') ---

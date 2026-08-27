@@ -7,6 +7,7 @@ from config.settings import settings
 from security.errors import describe_exception
 from security.logging import log_event, log_tool
 from security.sanitize import sanitize_text
+from security.scope import check_target
 
 if TYPE_CHECKING:
     from tools.registry import ToolRegistry
@@ -67,6 +68,12 @@ class PlanExecutor:
                     step_id, description, tool_name, "missing_args",
                     f"args obrigatórios ausentes: {', '.join(missing)}"
                 ))
+                continue
+
+            scope_error = check_target(spec.target_arg, args)
+            if scope_error:
+                log_event("warning", "scope", f"passo {step_id} ({tool_name}) bloqueado fora de escopo: {args}")
+                results.append(StepResult(step_id, description, tool_name, "blocked", scope_error))
                 continue
 
             if spec.requires_confirmation and settings.safe_mode != "advanced":

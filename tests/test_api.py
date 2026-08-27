@@ -233,6 +233,42 @@ def test_add_memory_redacts_secrets(client):
     assert "sk-ant-api03" not in facts[0]["content"]
 
 
+# --- Escopo autorizado ---
+def test_scope_starts_empty(client):
+    r = client.get("/api/scope")
+    assert r.status_code == 200
+    assert r.json()["scope"] == []
+
+
+def test_set_scope_then_reflected_in_health_and_scope_endpoint(client):
+    r = client.post("/api/scope", json={"scope": ["10.0.0.0/24", "example.com"]})
+    assert r.status_code == 200
+    assert r.json()["scope"] == ["10.0.0.0/24", "example.com"]
+
+    assert client.get("/api/scope").json()["scope"] == ["10.0.0.0/24", "example.com"]
+    assert client.get("/api/health").json()["authorized_scope"] == ["10.0.0.0/24", "example.com"]
+
+
+def test_set_scope_rejects_non_list_body(client):
+    r = client.post("/api/scope", json={"scope": "10.0.0.0/24"})
+    assert r.status_code == 400
+
+
+def test_set_scope_empty_list_clears_scope(client):
+    client.post("/api/scope", json={"scope": ["10.0.0.0/24"]})
+    r = client.post("/api/scope", json={"scope": []})
+    assert r.json()["scope"] == []
+
+
+# --- Relatório de pentest ---
+def test_report_downloads_markdown(client):
+    r = client.get("/api/report")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in r.headers["content-disposition"]
+    assert "# Relatório de Pentest" in r.text
+
+
 # --- Progresso do modo Learning ---
 def test_learning_progress_starts_empty(client):
     r = client.get("/api/learning/progress")

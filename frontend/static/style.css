@@ -114,6 +114,7 @@ html, body {
   cursor: pointer;
 }
 .btn:hover { background: rgba(34,211,238,0.22); }
+a.btn { display: inline-block; text-decoration: none; }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
 .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #050810; border: none; font-weight: 700; }
 
@@ -171,6 +172,21 @@ html, body {
 .tools { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .tool { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.82rem; }
 .tool b { color: var(--accent); }
+.tool.out-of-scope { border-color: var(--danger, #f43f5e); }
+
+/* Scope form */
+#scope-form { display: flex; flex-direction: column; gap: 10px; }
+#scope-input {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 14px;
+  color: var(--text);
+  font: inherit; font-size: 0.9rem;
+  resize: vertical;
+  outline: none;
+}
+#scope-input:focus { border-color: var(--accent); }
 
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); }

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable
 
 from security.errors import describe_exception
 from security.sanitize import sanitize_text
+from security.scope import check_target
 
 if TYPE_CHECKING:
     from tools.registry import ToolRegistry
@@ -81,6 +82,15 @@ class ConfirmationStore:
                 action.future.set_result(f"⛔ Ação {action.id} negada pelo usuário. "
                                          "Nada foi executado.")
             return "⛔ Negada pelo usuário. Nada foi executado."
+
+        spec = registry.get(action.tool)
+        scope_error = check_target(spec.target_arg if spec else None, action.args)
+        if scope_error:
+            if not action.future.done():
+                action.future.set_result(scope_error)
+            from security.logging import log_event
+            log_event("warning", "scope", f"ação {action.id} bloqueada fora de escopo: {action.args}")
+            return scope_error
 
         t0 = time.monotonic()
         try:

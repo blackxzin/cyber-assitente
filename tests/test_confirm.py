@@ -4,16 +4,29 @@ import asyncio
 
 import pytest
 
+from database import db
+from security import scope
 from tools.confirm import ConfirmationStore
+from tools.registry import ToolSpec
+
+
+@pytest.fixture(autouse=True)
+def _isolated_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
+    db.init_db()
 
 
 class _FakeRegistry:
-    def __init__(self) -> None:
+    def __init__(self, target_arg: str | None = None) -> None:
         self.called = False
+        self._target_arg = target_arg
 
     async def run(self, tool, args):
         self.called = True
         return f"executado {tool} com {args}"
+
+    def get(self, tool):
+        return ToolSpec(tool, "desc", self.run, target_arg=self._target_arg)
 
 
 async def _register(store: ConfirmationStore, timeout: float = 60):
@@ -62,3 +75,27 @@ async def test_pending_action_expires_after_timeout():
     await asyncio.sleep(0.15)
     assert action.status == "expired"
     assert store.get(action.id) is None
+
+
+# --- escopo autorizado: re-checado no momento da aprovação (defesa em profundidade) ---
+
+async def test_resolve_blocks_when_scope_narrowed_after_request():
+    scope.set_scope(["10.0.0.0/24"])
+    store = ConfirmationStore()
+    action = await _register(store)  # host 10.0.0.5, dentro do escopo no momento do register
+    scope.set_scope(["192.168.0.0/24"])  # escopo mudou antes da aprovação
+    registry = _FakeRegistry(target_arg="host")
+    text = await store.resolve(action, approve=True, registry=registry)
+    assert "fora do escopo" in text
+    assert registry.called is False
+    assert action.future.result() == text
+
+
+async def test_resolve_allows_when_target_stays_in_scope():
+    scope.set_scope(["10.0.0.0/24"])
+    store = ConfirmationStore()
+    action = await _register(store)
+    registry = _FakeRegistry(target_arg="host")
+    text = await store.resolve(action, approve=True, registry=registry)
+    assert registry.called is True
+    assert "executado nmap_scan" in text

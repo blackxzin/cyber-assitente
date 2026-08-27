@@ -11,6 +11,7 @@ from security.errors import describe_exception as _describe_exception
 from security.logging import log_event, log_tool
 from security.sanitize import sanitize_text
 
+from security.scope import check_target
 from .base import AgentContext
 from tools.confirm import ConfirmationStore
 
@@ -241,6 +242,11 @@ class Orchestrator:
                 f"Pra usar **{chosen}** preciso que você informe: {joined}. "
                 "Pode reescrever o pedido com esse dado?"
             )
+
+        scope_error = check_target(spec.target_arg, args)
+        if scope_error:
+            log_event("warning", "scope", f"{chosen} bloqueado fora de escopo: {args}")
+            return scope_error
 
         if spec.requires_confirmation and settings.safe_mode != "advanced":
             return await self._request_confirmation(prompt, history, chosen, args)

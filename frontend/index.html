@@ -102,6 +102,9 @@
         <div class="card glass">
           <div class="card-title">Safety Layer</div>
           <p class="muted">Ferramentas disponíveis e veredito de classificação de comandos.</p>
+          <div class="row">
+            <a id="report-link" class="btn" href="/api/report">📄 Baixar relatório de pentest</a>
+          </div>
           <div id="tools-list" class="tools"></div>
           <hr />
           <label class="field-label">Testar classificação de um comando</label>
@@ -127,10 +130,7 @@
         <header class="view-header"><h1>Configurações</h1></header>
         <div class="card glass">
           <div class="card-title">IA</div>
-          <div class="row">
-            <label>Provider <input id="set-provider" value="ollama" /></label>
-            <label>Modelo <input id="set-model" value="dolphin-llama3" /></label>
-          </div>
+          <div id="settings-providers" class="tools"><p class="muted">Carregando…</p></div>
           <hr />
           <div class="card-title">Segurança</div>
           <label class="row">Modo
@@ -147,6 +147,18 @@
           <div class="row">
             <label>Tamanho <input type="range" id="set-scale" min="40" max="160" value="90" /></label>
           </div>
+        </div>
+        <div class="card glass wide">
+          <div class="card-title">🎯 Escopo autorizado</div>
+          <p class="muted">Ferramentas ofensivas (nmap, sqlmap, hydra, gobuster, nikto) só rodam contra
+            alvos declarados aqui. Vazio = sem restrição (comportamento padrão). Um alvo por linha ou
+            separado por vírgula — IP, CIDR (<code>10.0.0.0/24</code>) ou domínio
+            (<code>example.com</code> cobre subdomínios).</p>
+          <form id="scope-form">
+            <textarea id="scope-input" rows="4" placeholder="ex: 10.0.0.0/24, example.com"></textarea>
+            <button class="btn">Salvar escopo</button>
+          </form>
+          <div id="scope-list" class="tools"></div>
         </div>
       </section>
     </main>

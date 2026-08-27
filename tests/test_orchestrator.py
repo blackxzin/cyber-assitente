@@ -7,6 +7,7 @@ import pytest
 from agents import Orchestrator
 from config.settings import settings
 from database import db
+from security import scope
 from tools.confirm import ConfirmationStore
 from tools.registry import ToolRegistry
 
@@ -48,6 +49,7 @@ def _registry_with_nmap() -> ToolRegistry:
     reg.register(
         "nmap_scan", "Escaneia um host (informe 'host').", _echo,
         risk="moderate", requires_confirmation=True, required_args=("host",),
+        target_arg="host",
     )
     return reg
 
@@ -188,6 +190,39 @@ async def test_assisted_safe_mode_still_asks_for_confirmation(monkeypatch):
     result = await orch._run_with_tools("scaneia 10.0.0.5", [])
     assert orch.last_pending["tool"] == "nmap_scan"
     assert "autorização" in result.lower()
+
+
+# --- escopo autorizado: bloqueia alvo fora de escopo antes de pedir confirmação ---
+
+async def test_out_of_scope_target_blocked_before_confirmation():
+    scope.set_scope(["10.0.0.0/24"])
+    provider = _ScriptedProvider(['{"tool": "nmap_scan", "args": {"host": "8.8.8.8"}}'])
+    reg = _registry_with_nmap()
+    orch = Orchestrator(provider, reg, ConfirmationStore())
+    result = await orch._run_with_tools("scaneia 8.8.8.8", [])
+    assert "fora do escopo" in result
+    assert orch.last_pending is None  # nunca chegou a pedir confirmação
+
+
+async def test_in_scope_target_still_asks_for_confirmation():
+    scope.set_scope(["10.0.0.0/24"])
+    provider = _ScriptedProvider(['{"tool": "nmap_scan", "args": {"host": "10.0.0.5"}}'])
+    reg = _registry_with_nmap()
+    orch = Orchestrator(provider, reg, ConfirmationStore())
+    result = await orch._run_with_tools("scaneia 10.0.0.5", [])
+    assert orch.last_pending["tool"] == "nmap_scan"
+    assert "autorização" in result.lower()
+
+
+async def test_out_of_scope_target_blocked_even_in_advanced_mode(monkeypatch):
+    monkeypatch.setattr(settings, "safe_mode", "advanced")
+    scope.set_scope(["10.0.0.0/24"])
+    provider = _ScriptedProvider(['{"tool": "nmap_scan", "args": {"host": "8.8.8.8"}}'])
+    reg = _registry_with_nmap()
+    orch = Orchestrator(provider, reg, ConfirmationStore())
+    result = await orch._run_with_tools("scaneia 8.8.8.8", [])
+    assert "fora do escopo" in result
+    assert orch.last_tool_calls == []  # ferramenta nunca executou
 
 
 # --- research_provider: Planner/Validator usam o 2° modelo quando configurado ---

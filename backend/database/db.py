@@ -245,6 +245,21 @@ def save_snapshot(kind: str, key: str, content: str) -> None:
         )
 
 
+def get_setting(key: str) -> str | None:
+    with db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str) -> None:
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+
+
 def insert_memory(content: str, kind: str = "fact") -> int:
     return insert("memory", kind=kind, content=content, created_at=_now())
 
