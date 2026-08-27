@@ -46,7 +46,19 @@
             <button id="btn-clear" class="btn ghost">Limpar</button>
           </div>
         </header>
-        <div id="messages" class="messages"></div>
+        <div id="messages" class="messages">
+          <div id="chat-empty" class="chat-empty">
+            <div class="chat-empty-icon">🛡</div>
+            <h2>Cyber, seu pentester</h2>
+            <p>Pergunte sobre rede, sistema, ou peça pra rodar uma ferramenta — scan, brute-force, análise de binário, o que precisar.</p>
+            <div class="chat-suggestions">
+              <button type="button" class="suggestion-chip" data-text="escaneia 10.0.0.1 com nmap">🔍 Escaneia 10.0.0.1 com nmap</button>
+              <button type="button" class="suggestion-chip" data-text="quais portas estão abertas localmente?">🔌 Portas abertas localmente</button>
+              <button type="button" class="suggestion-chip" data-text="explica o que é SQL injection">🎓 O que é SQL injection?</button>
+              <button type="button" class="suggestion-chip" data-text="lista os processos que mais usam RAM">📊 Processos que mais usam RAM</button>
+            </div>
+          </div>
+        </div>
         <form id="chat-form" class="composer">
           <button type="button" id="mic-btn" class="btn ghost mic" title="Segure para falar (PTT)">🎙</button>
           <input id="chat-input" type="text" placeholder="Pergunte sobre sua rede, sistema, segurança…" autocomplete="off" />

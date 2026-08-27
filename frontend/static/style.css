@@ -40,8 +40,8 @@ html, body {
   border-right: 1px solid var(--line);
 }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px; }
-.brand .logo { font-size: 28px; filter: drop-shadow(0 0 8px var(--accent)); }
-.brand-name { font-weight: 700; letter-spacing: 1px; }
+.brand .logo { font-size: 28px; filter: drop-shadow(0 0 8px var(--accent)); flex-shrink: 0; }
+.brand-name { font-weight: 700; font-size: 0.92rem; letter-spacing: 0.5px; white-space: nowrap; }
 .brand-sub { color: var(--muted); font-size: 0.72rem; }
 
 .nav-item {
@@ -72,7 +72,9 @@ html, body {
 .badge {
   font-size: 0.72rem; color: var(--muted);
   border: 1px solid var(--line); border-radius: 999px;
-  padding: 4px 10px; width: fit-content;
+  padding: 4px 10px; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: default;
 }
 
 /* Main */
@@ -131,24 +133,76 @@ a.btn { display: inline-block; text-decoration: none; }
 /* Chat */
 .messages {
   flex: 1; overflow: auto;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 14px;
+  justify-content: flex-end; /* conversa curta fica ancorada perto do composer, não solta no topo */
   padding-right: 6px;
+  padding-bottom: 250px; /* limpa a personagem fixa no canto — sem isso a última mensagem fica atrás dela */
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .msg {
   max-width: 78%;
-  padding: 12px 16px;
-  border-radius: 14px;
+  padding: 13px 17px;
+  border-radius: 16px;
   font-size: 0.9rem;
-  line-height: 1.5;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+  animation: msgIn 0.25s ease-out;
 }
-.msg.user { align-self: flex-end; background: linear-gradient(135deg, rgba(34,211,238,0.28), rgba(168,85,247,0.22)); border: 1px solid rgba(34,211,238,0.35); }
-.msg.ai { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
+.msg.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(34,211,238,0.30), rgba(168,85,247,0.24));
+  border: 1px solid rgba(34,211,238,0.4);
+  border-bottom-right-radius: 4px;
+}
+.msg.ai {
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(34,211,238,0.04);
+}
 .msg pre {
   background: rgba(0,0,0,0.4); border-radius: 8px; padding: 10px;
   overflow: auto; font-size: 0.8rem;
 }
+
+/* Chat empty state */
+.chat-empty {
+  margin: auto; /* auto-centra mesmo com o pai em justify-content: flex-end */
+  max-width: 480px;
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--muted);
+}
+.chat-empty.hidden { display: none; }
+.chat-empty-icon {
+  font-size: 2.6rem;
+  filter: drop-shadow(0 0 16px rgba(34,211,238,0.35));
+  margin-bottom: 14px;
+}
+.chat-empty h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 1.15rem;
+  letter-spacing: 0.5px;
+}
+.chat-empty p { margin: 0 0 22px; font-size: 0.85rem; line-height: 1.6; }
+.chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.suggestion-chip {
+  background: rgba(34,211,238,0.08);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: inherit; font-size: 0.78rem;
+  padding: 8px 14px; border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.suggestion-chip:hover { background: rgba(34,211,238,0.16); border-color: rgba(34,211,238,0.4); transform: translateY(-1px); }
 .msg code { color: var(--accent); }
 
 .composer { display: flex; gap: 10px; margin-top: 14px; }
@@ -218,6 +272,8 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 .field-label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 6px; }
 
+input[type="checkbox"], input[type="range"] { accent-color: var(--accent); }
+
 /* Character panel */
 .character {
   position: fixed;
@@ -238,13 +294,18 @@ a.btn { display: inline-block; text-decoration: none; }
 .char-bubble {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%; transform: translateX(-50%);
+  /* alinhado pela direita (não centralizado) — o personagem fica perto da
+     borda direita da tela, centralizar o balão nele faria metade vazar
+     pra fora da viewport */
+  right: 0; left: auto;
   background: var(--panel); border: 1px solid var(--accent);
   border-radius: 10px; padding: 8px 10px;
   font-size: 0.75rem; white-space: nowrap;
   opacity: 0; pointer-events: none;
   transition: opacity 0.25s;
-  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  max-width: min(220px, calc(100vw - 52px));
+  overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 .char-bubble.show { opacity: 1; }
 

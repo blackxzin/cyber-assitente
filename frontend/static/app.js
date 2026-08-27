@@ -41,6 +41,7 @@ function esc(s) {
 }
 
 function addMsg(role, content) {
+  $("#chat-empty")?.classList.add("hidden");
   const div = document.createElement("div");
   div.className = "msg " + role;
   // escape first — content is untrusted (user paste, tool/OSINT output) —
@@ -52,6 +53,13 @@ function addMsg(role, content) {
   $("#messages").scrollTop = $("#messages").scrollHeight;
   return div;
 }
+
+$("#chat-empty")?.querySelectorAll(".suggestion-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    $("#chat-input").value = chip.dataset.text;
+    $("#chat-input").focus();
+  });
+});
 
 // ---- character ----
 async function loadCharManifest() {
@@ -618,7 +626,8 @@ $("#memory-form").addEventListener("submit", async (e) => {
   }
 });
 $("#btn-clear").addEventListener("click", () => {
-  $("#messages").innerHTML = "";
+  $("#messages").querySelectorAll(".msg").forEach((m) => m.remove());
+  $("#chat-empty")?.classList.remove("hidden");
   charSay("Conversa limpa!");
 });
 $("#confirm-approve").addEventListener("click", () => decideConfirm(true));
@@ -635,7 +644,9 @@ $("#confirm-modal").addEventListener("click", (e) => {
   try {
     const r = await fetch("/api/health");
     const d = await r.json();
-    $("#model-badge").textContent = `${d.provider} / ${d.model} · ${d.safe_mode}`;
+    const full = `${d.provider} / ${d.model} · ${d.safe_mode}`;
+    $("#model-badge").textContent = `${d.provider} · ${d.safe_mode}`;
+    $("#model-badge").title = full;
   } catch {
     $("#model-badge").textContent = "backend offline";
   }
