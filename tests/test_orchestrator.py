@@ -2,10 +2,21 @@
 ferramenta usar, validação de argumentos obrigatórios, e retry quando o
 LLM erra o formato JSON ou cita uma ferramenta inexistente."""
 
+import pytest
+
 from agents import Orchestrator
 from config.settings import settings
+from database import db
 from tools.confirm import ConfirmationStore
 from tools.registry import ToolRegistry
+
+
+@pytest.fixture(autouse=True)
+def _isolated_db(tmp_path, monkeypatch):
+    """Each test gets its own throwaway SQLite file — orchestrator calls
+    _memory_snippet(), which hits the real DB_PATH if this isn't set."""
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
+    db.init_db()
 
 
 class _ScriptedProvider:
