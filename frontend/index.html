@@ -158,6 +158,27 @@
           <div class="card-title">IA</div>
           <div id="settings-providers" class="tools"><p class="muted">Carregando…</p></div>
           <hr />
+          <div class="card-title">Research provider (2° modelo, opcional)</div>
+          <p class="muted">DeepHat (execução) continua decidindo e rodando ferramenta sempre.
+            Configure aqui um 2° modelo (ex: OpenRouter, Anthropic) só pra planejamento/validação
+            — aplica na hora, sem reiniciar o servidor. Deixe provider vazio e salve pra remover.</p>
+          <form id="provider-form" class="row">
+            <label>Provider
+              <select id="provider-select"></select>
+            </label>
+            <label>Host / Base URL
+              <input id="provider-base-url" type="text" placeholder="https://openrouter.ai/api/v1" />
+            </label>
+            <label>Modelo
+              <input id="provider-model" type="text" placeholder="anthropic/claude-sonnet-4.5" />
+            </label>
+            <label>API Key
+              <input id="provider-api-key" type="password" placeholder="deixe em branco pra manter a atual" />
+            </label>
+            <button class="btn">Salvar</button>
+          </form>
+          <p id="provider-status" class="muted"></p>
+          <hr />
           <div class="card-title">Segurança</div>
           <label class="row">Modo
             <select id="set-mode">

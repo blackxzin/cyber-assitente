@@ -48,11 +48,14 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - alerta grave dispara notificação desktop (`notify-send`).
 - **Dashboard** com CPU/memória/disco em tempo real (antes fixo em "—").
 - **Providers de IA**: `ollama` (padrão), `nvidia` (visão), `openai`/`lmstudio`/`openrouter` (API OpenAI-compatible — `openrouter` dá acesso a várias IAs de vários fabricantes com uma chave só), `anthropic` (Claude, API nativa).
-- **Research provider (opcional)**: `RESEARCH_PROVIDER` no `.env` liga um 2° modelo só pra
-  pesquisa/planejamento — o Planner (monta o plano de pentest) e o Validator (avalia o
-  resultado / o que falta) passam a usar ele em vez do DeepHat. O DeepHat (`AI_PROVIDER`)
-  continua sendo quem decide e executa as ferramentas de verdade. Vazio (padrão) = um
-  modelo só pra tudo, como sempre foi.
+- **Research provider (opcional)**: liga um 2° modelo só pra pesquisa/planejamento — o
+  Planner (monta o plano de pentest) e o Validator (avalia o resultado / o que falta)
+  passam a usar ele em vez do DeepHat. O DeepHat (`AI_PROVIDER`) continua sendo quem decide
+  e executa as ferramentas de verdade. Configurável de duas formas: `RESEARCH_PROVIDER`/
+  `RESEARCH_BASE_URL`/`RESEARCH_MODEL`/`RESEARCH_API_KEY` no `.env`, **ou** direto pela UI
+  (aba "⚙️ Configurações" → "Research provider" — provider/host/modelo/chave, `GET/POST
+  /api/provider/research`) sem precisar reiniciar o servidor; a config da UI tem prioridade
+  sobre o `.env` quando as duas existem. Vazio (padrão) = um modelo só pra tudo, como sempre foi.
 - **Memória longa**: ferramentas `remember`/`recall` guardam fatos em SQLite entre sessões
   (`GET/POST /api/memory`, `DELETE /api/memory/{id}`); os fatos mais recentes são injetados
   automaticamente no contexto do chat, sem precisar pedir explicitamente. Tem aba própria

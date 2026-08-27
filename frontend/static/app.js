@@ -402,7 +402,52 @@ async function loadSettings() {
   } catch (err) {
     toast("Configurações: " + err.message);
   }
+  loadResearchProviderConfig();
 }
+
+// ---- research provider (2° modelo, opcional — host/modelo/chave configuráveis na UI) ----
+async function loadResearchProviderConfig() {
+  try {
+    const r = await fetch("/api/provider/research");
+    const d = await r.json();
+    const select = $("#provider-select");
+    select.innerHTML = `<option value="">(nenhum — usa só o principal)</option>` +
+      d.available_providers.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("");
+    select.value = d.provider || "";
+    $("#provider-base-url").value = d.base_url || "";
+    $("#provider-model").value = d.model || "";
+    $("#provider-api-key").value = "";
+    const sourceLabel = { ui: "configurado na UI", env: "configurado no .env", none: "nenhum (usa só o principal)" };
+    $("#provider-status").textContent =
+      `Ativo agora: ${d.provider || "—"} (${sourceLabel[d.source] || d.source})` +
+      (d.api_key_set ? " · chave salva" : "");
+  } catch (err) {
+    toast("Research provider: " + err.message);
+  }
+}
+
+$("#provider-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {
+    provider: $("#provider-select").value,
+    base_url: $("#provider-base-url").value.trim(),
+    model: $("#provider-model").value.trim(),
+  };
+  const key = $("#provider-api-key").value.trim();
+  if (key) body.api_key = key;
+  try {
+    const r = await fetch("/api/provider/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || "falha ao salvar");
+    toast(body.provider ? `Research provider aplicado: ${body.provider}` : "Research provider removido.");
+    loadResearchProviderConfig();
+  } catch (err) {
+    toast("Research provider: " + err.message);
+  }
+});
 
 // ---- escopo autorizado ----
 async function loadScope() {

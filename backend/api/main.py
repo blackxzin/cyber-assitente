@@ -20,7 +20,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from ai.providers import build_provider, build_research_provider
+from ai.providers import (
+    available_providers,
+    build_provider,
+    build_research_provider,
+    get_research_provider_override,
+    set_research_provider_override,
+)
 from config.settings import FRONTEND_DIR, settings
 from database import db as database
 from security.errors import describe_exception
@@ -163,12 +169,19 @@ async def index() -> FileResponse:
 # --- Health ---
 @app.get("/api/health")
 async def health() -> dict:
+    # override salvo via UI (POST /api/provider/research) tem prioridade
+    # sobre o .env — health precisa refletir o que tá REALMENTE ativo, não
+    # só o valor estático do .env (senão a UI mostra "não configurado"
+    # mesmo com um override aplicado e funcionando).
+    override = get_research_provider_override()
+    research_provider = override["provider"] if override else (settings.research_provider or None)
+    research_model = (override.get("model") if override else settings.research_model) or None
     return {
         "status": "ok",
         "provider": settings.ai_provider,
         "model": settings.ai_model,
-        "research_provider": settings.research_provider or None,
-        "research_model": settings.research_model or None,
+        "research_provider": research_provider,
+        "research_model": research_model,
         "safe_mode": settings.safe_mode,
         "tools": [t.name for t in _registry.list()],
         "authorized_scope": scope_module.get_scope(),
@@ -285,6 +298,52 @@ async def classify(body: dict) -> dict:
     if action.startswith("command:"):
         command_verdict = classify_command(action.split(":", 1)[1].strip().split())
     return {"decision": decision.value, "command": command_verdict, "risk": risk.value}
+
+
+# --- Config do research provider (2° modelo opcional — openrouter/anthropic/etc) ---
+@app.get("/api/provider/research")
+async def get_research_provider_config() -> dict:
+    override = get_research_provider_override()
+    if override:
+        return {
+            "source": "ui",
+            "provider": override["provider"],
+            "base_url": override.get("base_url", ""),
+            "model": override.get("model", ""),
+            "api_key_set": bool(override.get("api_key")),
+            "available_providers": available_providers(),
+        }
+    return {
+        "source": "env" if settings.research_provider else "none",
+        "provider": settings.research_provider or None,
+        "base_url": settings.research_base_url,
+        "model": settings.research_model,
+        "api_key_set": bool(settings.research_api_key),
+        "available_providers": available_providers(),
+    }
+
+
+@app.post("/api/provider/research")
+async def set_research_provider_config(body: dict) -> dict:
+    provider = str(body.get("provider") or "").strip()
+    if provider and provider.lower() not in available_providers():
+        raise HTTPException(status_code=400, detail=f"provider desconhecido: {provider!r}")
+    base_url = str(body.get("base_url") or "").strip()
+    model = str(body.get("model") or "").strip()
+    api_key = body.get("api_key")
+    api_key = str(api_key).strip() if isinstance(api_key, str) and api_key.strip() else None
+    set_research_provider_override(provider, base_url, model, api_key)
+
+    global _research_provider
+    old_provider = _research_provider
+    _research_provider = build_research_provider()
+    _chat.orchestrator.research_provider = _research_provider
+    with contextlib.suppress(Exception):
+        await old_provider.aclose()
+
+    log_event("info", "provider",
+             f"research provider config atualizado: {provider or '(removido, volta pro .env)'}")
+    return await get_research_provider_config()
 
 
 # --- Escopo autorizado (gate opt-in antes de rodar ferramenta ofensiva) ---

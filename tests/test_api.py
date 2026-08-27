@@ -274,6 +274,69 @@ def test_set_scope_empty_list_clears_scope(client):
     assert r.json()["scope"] == []
 
 
+# --- Config do research provider (2° modelo) ---
+def test_research_provider_config_starts_from_env(client):
+    r = client.get("/api/provider/research")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] in ("env", "none")
+    assert "openrouter" in body["available_providers"]
+
+
+def test_set_research_provider_config_applies_immediately(client):
+    r = client.post("/api/provider/research", json={
+        "provider": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "anthropic/claude-sonnet-4.5",
+        "api_key": "sk-or-dummy-test-key",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "ui"
+    assert body["provider"] == "openrouter"
+    assert body["model"] == "anthropic/claude-sonnet-4.5"
+    assert body["api_key_set"] is True
+
+    # não devolve a chave em texto puro de volta
+    assert "api_key" not in body
+
+    # aplicado de verdade no orchestrator ativo, sem reiniciar processo
+    import api.main as main_module
+    assert main_module._chat.orchestrator.research_provider.config.model == "anthropic/claude-sonnet-4.5"
+
+
+def test_set_research_provider_config_rejects_unknown_provider(client):
+    r = client.post("/api/provider/research", json={"provider": "nao-existe"})
+    assert r.status_code == 400
+
+
+def test_set_research_provider_config_empty_clears_override(client):
+    client.post("/api/provider/research", json={"provider": "openrouter", "api_key": "sk-or-x"})
+    r = client.post("/api/provider/research", json={"provider": ""})
+    assert r.status_code == 200
+    assert r.json()["source"] in ("env", "none")
+
+
+def test_set_research_provider_config_omitted_key_keeps_existing(client):
+    client.post("/api/provider/research", json={
+        "provider": "openrouter", "model": "model-a", "api_key": "sk-or-original",
+    })
+    r = client.post("/api/provider/research", json={"provider": "openrouter", "model": "model-b"})
+    body = r.json()
+    assert body["model"] == "model-b"
+    assert body["api_key_set"] is True  # chave original preservada
+
+
+def test_health_reflects_research_provider_override(client):
+    assert client.get("/api/health").json()["research_provider"] is None
+    client.post("/api/provider/research", json={
+        "provider": "openrouter", "model": "anthropic/claude-sonnet-4.5",
+    })
+    body = client.get("/api/health").json()
+    assert body["research_provider"] == "openrouter"
+    assert body["research_model"] == "anthropic/claude-sonnet-4.5"
+
+
 # --- Relatório de pentest ---
 def test_report_downloads_markdown(client):
     r = client.get("/api/report")
