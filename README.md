@@ -26,7 +26,13 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
     busca, resultado anexado direto na resposta do scan (fecha o ciclo achar→explorar);
   - `packet_capture` — captura tráfego (`dumpcap`) e resume com `tshark`;
   - `cpf_osint` — mapeia contas associadas a um CPF (usa o [cpfFinder](https://github.com/p1ngul1n0/cpfFinder));
+  - `email_osint` — descobre em quais sites um email está cadastrado (via [holehe](https://github.com/megadose/holehe));
+  - `username_osint` — busca um username em centenas de redes sociais/plataformas (via [sherlock](https://github.com/sherlock-project/sherlock));
   - `burp_proxy_history` / `burp_send_request` — lê histórico do proxy e reenvia requisições via a ponte com o Burp Suite.
+- **OSINT passivo** (sem confirmação — só consulta serviço público, nunca toca o alvo):
+  - `domain_whois` — WHOIS de domínio (registrante, datas, nameservers), via `python-whois`;
+  - `subdomain_enum` — enumera subdomínios por certificate transparency ([crt.sh](https://crt.sh),
+    às vezes instável/rate-limited — falha vira mensagem de erro clara, não trava o chat).
 - **Engenharia reversa** de binário/malware/firmware local (sem confirmação — arquivo local
   apontado pelo operador, não toca alvo remoto): `re_file_info` (tipo/arquitetura via `file`),
   `re_strings` (strings impressas, com filtro), `re_symbols` (`nm`, cai pra `readelf` se strip),

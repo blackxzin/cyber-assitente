@@ -41,6 +41,7 @@ def test_list_tools_includes_confirmable_ones(client):
         "sqlmap_scan", "hydra_bruteforce", "gobuster_scan", "nikto_scan",
         "burp_proxy_history", "burp_search_history", "burp_find_vulnerabilities",
         "burp_send_request",
+        "email_osint", "username_osint", "domain_whois", "subdomain_enum",
     } <= names
 
 
@@ -49,6 +50,8 @@ def test_tools_expose_category_for_ui_grouping(client):
     by_name = {t["name"]: t["category"] for t in r.json()["tools"]}
     assert by_name["nmap_scan"] == "ofensivo"
     assert by_name["cpf_osint"] == "osint"
+    assert by_name["email_osint"] == "osint"
+    assert by_name["domain_whois"] == "osint"
     assert by_name["searchsploit_lookup"] == "exploração"
     assert by_name["re_file_info"] == "engenharia-reversa"
     assert by_name["burp_proxy_history"] == "burp"
