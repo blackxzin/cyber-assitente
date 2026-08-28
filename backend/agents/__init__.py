@@ -23,6 +23,26 @@ _SYNTHESIS_INPUT_CHARS = 3000
 _PLAN_CHARS = 600
 _MEMORY_FACTS_INJECTED = 6
 
+# Matches the plain-string error conventions every tool in backend/tools/*.py
+# uses when it fails or rejects bad input ("erro: ...", "Uso: informe...",
+# "host inválido: ..."). These carry no real data to explain — sending them
+# to the "cite dados reais" synthesis prompt just invites the LLM to
+# fabricate plausible-sounding facts to fill that section (observed live:
+# a Burp MCP connection error came back with an invented Burp Suite version,
+# Windows build and extension list). Skip synthesis entirely for these.
+_TOOL_ERROR_RE = re.compile(r"^(erro:|uso:|\S+ inválid[oa]:)", re.IGNORECASE)
+# tools/confirm.py::resolve() wraps a successful confirmed action as
+# "✅ Ação {id} aprovada.\n\n{result}" — a tool-level error string still
+# lands inside that wrapper (the action itself didn't raise, its own
+# execution just returned an error message), so it has to be stripped
+# before the error check above can see it.
+_APPROVED_ACTION_PREFIX_RE = re.compile(r"^✅ Ação \d+ aprovada\.\n\n")
+
+
+def _looks_like_tool_error(text: str) -> bool:
+    text = _APPROVED_ACTION_PREFIX_RE.sub("", text.strip(), count=1)
+    return bool(_TOOL_ERROR_RE.match(text.strip()))
+
 
 def _memory_snippet() -> str:
     """Recent long-term facts (see tools/memory.py), formatted for a system
@@ -314,6 +334,14 @@ class Orchestrator:
             return f"⚠️ Não consegui consultar {chosen}: {_describe_exception(exc)}"
 
         dur = round(time.monotonic() - t0, 3)
+        if _looks_like_tool_error(result):
+            # Tool ran but rejected the input or hit its own failure (e.g. a
+            # dependency it talks to is unreachable) — no real data to
+            # synthesize, and asking the LLM to explain it invites invented
+            # detail. Return it verbatim, same as an exception from the tool.
+            self.last_tool_calls.append({"tool": chosen, "status": "error", "result": result[:500]})
+            log_tool("tool", tool=chosen, status="error", duration=dur, result=result)
+            return f"⚠️ {result}"
         ctx = AgentContext(prompt=prompt, history=history)
         ctx.tool_calls.append({"tool": chosen, "result": result})
         self.last_tool_calls.append({"tool": chosen, "status": "ok", "result": result[:500]})
@@ -335,7 +363,7 @@ class Orchestrator:
             text = action.future.result()
         except Exception:
             return "⚠️ Resultado da ação não disponível."
-        if text.startswith(("⚠️", "⛔")):
+        if text.startswith(("⚠️", "⛔")) or _looks_like_tool_error(text):
             return text
         messages = [
             {"role": "system", "content": (

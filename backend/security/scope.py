@@ -16,11 +16,18 @@ Scope entries can be:
 """
 
 import ipaddress
+import re
 from urllib.parse import urlsplit
 
 from database import db as database
 
 _SETTING_KEY = "authorized_scope"
+# A CIDR pattern is "<ip>/<prefix>" — an address followed by digits, nothing
+# else. A domain typed as a full URL ("https://x.com/path") also contains a
+# '/', so a bare "/" in pattern" check misfires on it: it falls into the CIDR
+# branch, ipaddress.ip_network() raises on the scheme, and the scope check
+# rejects an in-scope target. Only route actual CIDR shapes there.
+_CIDR_RE = re.compile(r"^[0-9a-fA-F.:]+/\d{1,3}$")
 
 
 def get_scope() -> list[str]:
@@ -51,14 +58,17 @@ def _matches_one(host: str, pattern: str) -> bool:
     if not pattern:
         return False
     # CIDR or bare IP pattern — only meaningful if host is itself an IP.
-    if "/" in pattern or _looks_like_ip(pattern):
+    if _CIDR_RE.match(pattern) or _looks_like_ip(pattern):
         try:
             host_ip = ipaddress.ip_address(host)
             network = ipaddress.ip_network(pattern, strict=False)
             return host_ip in network
         except ValueError:
             return False
-    # Domain pattern: exact match or subdomain suffix.
+    # Domain pattern: accept a bare domain or a full URL (the panel takes
+    # free text, and pasting "https://x.com/path" is a natural thing to do)
+    # by normalizing it the same way a real target is normalized.
+    pattern = extract_host(pattern)
     domain = pattern[2:] if pattern.startswith("*.") else pattern
     host_l, domain_l = host.lower(), domain.lower()
     return host_l == domain_l or host_l.endswith("." + domain_l)

@@ -166,6 +166,22 @@ async def test_huge_tool_result_truncated_before_synthesis_prompt():
     assert "truncado" in sent_content
 
 
+async def test_tool_error_result_skips_synthesis_to_avoid_hallucination():
+    # Regressão observada ao vivo: "erro: ..." (convenção usada por toda
+    # ferramenta em tools/*.py) foi mandado pro prompt de síntese ("cite
+    # dados reais"), e o LLM local inventou versão de software, SO e lista
+    # de extensões que não existiam em lugar nenhum do resultado real.
+    provider = _ScriptedProvider([
+        '{"tool": "connectivity", "args": {"host": "8.8.8.8"}}',
+        "não deveria ser chamado pra sintetizar um erro",
+    ])
+    reg = _registry_with_no_confirm_tool("erro: Não consegui conectar no MCP Server do Burp")
+    orch = Orchestrator(provider, reg, ConfirmationStore())
+    result = await orch._run_with_tools("roda a ferramenta", [])
+    assert result == "⚠️ erro: Não consegui conectar no MCP Server do Burp"
+    assert len(provider.calls) == 1  # só a decisão, síntese nunca chamada
+
+
 # --- safe_mode=advanced: ferramentas confirmáveis rodam direto (pentest automático) ---
 
 async def test_advanced_safe_mode_runs_confirmable_tool_without_asking(monkeypatch):
@@ -248,3 +264,30 @@ async def test_research_provider_used_for_planning_when_given():
     assert not main_provider.calls  # não o principal (parou em confirmação)
     assert result is not None
     assert "autorização" in result.lower()
+
+
+# --- synthesize_approved: erro do próprio resultado não vira alucinação ---
+# (mesmo bug do teste acima, mas no caminho de ação confirmada — o resultado
+# chega envolto em "✅ Ação N aprovada.\n\n{result}" por tools/confirm.py,
+# então a detecção de erro precisa desembrulhar isso primeiro.)
+
+async def test_synthesize_approved_skips_synthesis_for_tool_error():
+    provider = _ScriptedProvider(["não deveria ser chamado pra sintetizar um erro"])
+    reg = ToolRegistry()
+
+    async def _fail(args: dict) -> str:
+        return "erro: Não consegui conectar no MCP Server do Burp (http://127.0.0.1:9876/)"
+
+    reg.register("burp_find_vulnerabilities", "Varre vulnerabilidades.", _fail,
+                  risk="moderate", requires_confirmation=True)
+    store = ConfirmationStore()
+    orch = Orchestrator(provider, reg, store)
+    action = await store.register("burp_find_vulnerabilities", {}, "acha vulns no burp", "resumo")
+    await store.resolve(action, True, reg)
+
+    result = await orch.synthesize_approved(action.id)
+    assert result == (
+        "✅ Ação 1 aprovada.\n\n"
+        "erro: Não consegui conectar no MCP Server do Burp (http://127.0.0.1:9876/)"
+    )
+    assert not provider.calls  # síntese nunca chamada

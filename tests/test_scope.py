@@ -57,6 +57,17 @@ def test_extract_host_from_url_and_bare_host():
     assert scope.extract_host("10.0.0.5:22") == "10.0.0.5"
 
 
+def test_scope_pattern_as_full_url_matches_by_host():
+    # Regressão: colar a URL inteira no painel de escopo (em vez de só o
+    # domínio) fazia o alvo "cair" no branch de CIDR por causa da '/' da URL
+    # e do path, e ipaddress.ip_network() rejeitava — todo alvo desse
+    # domínio (mesmo o próprio path exato colado) virava "fora de escopo".
+    scope.set_scope(["https://exemplo.com.br/"])
+    assert scope.is_authorized("exemplo.com.br") is True
+    assert scope.is_authorized("https://exemplo.com.br/cpanel") is True
+    assert scope.is_authorized("https://outro.com/") is False
+
+
 def test_is_authorized_extracts_host_from_url_target():
     scope.set_scope(["example.com"])
     assert scope.is_authorized("http://example.com/admin?x=1") is True
