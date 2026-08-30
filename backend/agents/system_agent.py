@@ -4,6 +4,7 @@ Runs read-only diagnostics tools, then the LLM explains the results.
 """
 
 from agents.base import Agent, AgentContext
+from agents.streaming import stream_or_complete, OnDelta
 from ai.providers.base import LLMProvider
 from security.errors import describe_exception
 from tools.registry import ToolRegistry
@@ -17,7 +18,7 @@ class SystemAgent(Agent):
         self.provider = provider
         self.registry = registry
 
-    async def run(self, ctx: AgentContext) -> str:
+    async def run(self, ctx: AgentContext, on_delta: "OnDelta | None" = None) -> str:
         # tools that are pure reads on this machine
         tool_names = [
             "system_info",
@@ -44,4 +45,4 @@ class SystemAgent(Agent):
             )},
             {"role": "user", "content": f"Pergunta: {ctx.prompt}\n\nDados coletados:\n{combined[:8000]}"},
         ]
-        return (await self.provider.complete(messages)).strip()
+        return await stream_or_complete(self.provider, messages, on_delta)

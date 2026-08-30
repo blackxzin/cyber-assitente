@@ -8,6 +8,7 @@ adapts instead of repeating itself verbatim.
 import re
 
 from agents.base import Agent, AgentContext
+from agents.streaming import stream_or_complete, OnDelta
 from ai.providers.base import LLMProvider
 from database import db as database
 
@@ -38,7 +39,7 @@ class LearningAgent(Agent):
     def __init__(self, provider: LLMProvider) -> None:
         self.provider = provider
 
-    async def run(self, ctx: AgentContext) -> str:
+    async def run(self, ctx: AgentContext, on_delta: "OnDelta | None" = None) -> str:
         concept = _extract_concept(ctx.prompt)
         seen_before = any(
             row["concept"] == concept for row in database.learning_progress(limit=500)
@@ -65,4 +66,4 @@ class LearningAgent(Agent):
             *ctx.history[-4:],
             {"role": "user", "content": ctx.prompt},
         ]
-        return (await self.provider.complete(messages)).strip()
+        return await stream_or_complete(self.provider, messages, on_delta)

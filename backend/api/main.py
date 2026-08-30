@@ -196,18 +196,54 @@ async def chat(body: dict):
         raise HTTPException(status_code=400, detail="Mensagem vazia.")
 
     async def event_stream():
+        # Producer/consumer: the orchestrator streams the growing answer into
+        # a queue via on_delta while the model generates; the consumer forwards
+        # each snapshot as an SSE event so the browser repaints live instead of
+        # waiting for the whole completion (a single answer can take ~1min on a
+        # local CPU model). An immediate progress ping fills the gap before the
+        # first token (tool selection + tool run happen before any synthesis).
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+
+        async def on_delta(text_so_far: str) -> None:
+            await queue.put({"content": text_so_far})
+
+        async def on_progress(status: str) -> None:
+            # status curto das fases lentas antes da síntese (decidir/rodar
+            # ferramenta) — pintado como content e substituído pelo 1º token real.
+            await queue.put({"content": status})
+
+        async def producer() -> None:
+            try:
+                result = await _chat.stream(message, on_delta=on_delta,
+                                            on_progress=on_progress)
+                final = {"content": result["content"]}
+                if result.get("pending"):
+                    final["pending"] = result["pending"]
+                await queue.put(final)
+            except Exception as exc:
+                msg = describe_exception(exc)
+                log_event("danger", "chat_error", msg)
+                await queue.put({"error": msg})
+            finally:
+                await queue.put(done)
+
+        task = asyncio.create_task(producer())
+        yield f"data: {json.dumps({'content': '⏳ Analisando…'}, ensure_ascii=False)}\n\n"
         try:
-            result = await _chat.stream(message)
-            payload = {"content": result["content"]}
-            if result.get("pending"):
-                payload["pending"] = result["pending"]
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            while True:
+                item = await queue.get()
+                if item is done:
+                    break
+                if "error" in item:
+                    yield f"event: error\ndata: {json.dumps(item, ensure_ascii=False)}\n\n"
+                    continue
+                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
-        except Exception as exc:
-            msg = describe_exception(exc)
-            log_event("danger", "chat_error", msg)
-            payload = json.dumps({"error": msg}, ensure_ascii=False)
-            yield f"event: error\ndata: {payload}\n\n"
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
 
     return StreamingResponse(
         event_stream(),

@@ -13,6 +13,7 @@ from security.sanitize import sanitize_text
 
 from security.scope import check_target
 from .base import AgentContext
+from .streaming import stream_or_complete
 from tools.confirm import ConfirmationStore
 
 if TYPE_CHECKING:
@@ -88,6 +89,20 @@ def classify(prompt: str) -> str:
     return "network"
 
 
+# Quais categorias de ferramenta cada bucket precisa ver na hora de DECIDIR.
+# Filtrar a lista de ferramentas mandada ao modelo pelo bucket encurta o prompt
+# (menos tokens pra avaliar no CPU = decisão mais rápida). "memória" entra em
+# todos (recall/remember são transversais). É só otimização do 1º chute: a
+# validação aceita QUALQUER ferramenta registrada, e o retry usa a lista
+# completa — então nunca exclui a ferramenta certa de forma definitiva.
+_BUCKET_CATEGORIES: dict[str, set[str]] = {
+    "network": {"rede", "diagnóstico", "osint", "ofensivo"},
+    "system": {"sistema", "diagnóstico"},
+    "security": {"ofensivo", "exploração", "burp", "engenharia-reversa",
+                 "osint", "rede", "diagnóstico"},
+}
+
+
 class Orchestrator:
     """Coordinates agent selection, tool execution and final LLM synthesis."""
 
@@ -106,10 +121,20 @@ class Orchestrator:
         self.last_tool_calls: list[dict] = []
         # Presente quando a resposta contém uma ação aguardando aprovação.
         self.last_pending: dict | None = None
+        # Callback opcional (SSE) que recebe o texto acumulado da resposta
+        # final enquanto o modelo gera. None = comportamento não-streaming.
+        self._on_delta = None
+        # Callback opcional (SSE) pra status curtos ("🔧 executando X…")
+        # durante as fases lentas ANTES da síntese (decidir/rodar ferramenta),
+        # pra o chat não ficar parado no "⏳ Analisando…".
+        self._on_progress = None
 
-    async def run(self, prompt: str, history: list[dict[str, str]]) -> str:
+    async def run(self, prompt: str, history: list[dict[str, str]],
+                  on_delta=None, on_progress=None) -> str:
         self.last_tool_calls = []
         self.last_pending = None
+        self._on_delta = on_delta
+        self._on_progress = on_progress
         from agents.planner import is_complex_task
         if is_complex_task(prompt):
             result = await self._run_pipeline(prompt, history)
@@ -117,6 +142,15 @@ class Orchestrator:
                 return result
         agent_name = classify(prompt)
         return await self._run_agent(agent_name, prompt, history)
+
+    async def _progress(self, message: str) -> None:
+        """Emite um status curto pro cliente (no-op se não houver callback)."""
+        if self._on_progress is None:
+            return
+        try:
+            await self._on_progress(message)
+        except Exception:
+            pass
 
     async def _run_pipeline(self, prompt: str, history: list[dict[str, str]]) -> str | None:
         """Planner → Executor → Validator pipeline for complex tasks.
@@ -127,11 +161,13 @@ class Orchestrator:
         from agents.executor import PlanExecutor
         from agents.validator import ResultValidator
 
+        await self._progress("🧭 montando plano…")
         planner = TaskPlanner(self.research_provider, self.registry)
         steps = await planner.plan(prompt)
         if not steps:
             return None
 
+        await self._progress(f"⚙️ executando plano de {len(steps)} passo(s)…")
         executor = PlanExecutor(self.registry, self.store)
         results, pending = await executor.execute(steps)
 
@@ -196,7 +232,7 @@ class Orchestrator:
             )},
         ]
         try:
-            return (await self.provider.complete(messages)).strip()
+            return await stream_or_complete(self.provider, messages, self._on_delta)
         except Exception as exc:
             return f"{results_block}\n\n(síntese indisponível: {_describe_exception(exc)})"
 
@@ -205,22 +241,28 @@ class Orchestrator:
 
         if agent == "system":
             ctx = AgentContext(prompt=prompt, history=history)
-            answer = await SystemAgent(self.provider, self.registry).run(ctx)
+            answer = await SystemAgent(self.provider, self.registry).run(ctx, self._on_delta)
         elif agent == "learning":
             from agents.learning_agent import LearningAgent
             ctx = AgentContext(prompt=prompt, history=history)
-            answer = await LearningAgent(self.provider).run(ctx)
+            answer = await LearningAgent(self.provider).run(ctx, self._on_delta)
         else:
-            answer = await self._run_with_tools(prompt, history)
+            answer = await self._run_with_tools(prompt, history, agent)
         return answer
 
-    async def _run_with_tools(self, prompt: str, history: list[dict[str, str]]) -> str:
-        """Classic loop: LLM decides tool → confirm if risky → execute → explain."""
-        tool_names = [t.name for t in self.registry.list()]
-        tool_block = "\n".join(
-            f"- {t.name}: {t.description}" for t in self.registry.list()
-        )
-        decide_prompt = (
+    def _tool_block(self, bucket: str | None, full: bool = False) -> str:
+        """Lista de ferramentas pro prompt de decisão. Sem `full`, filtra pelas
+        categorias do bucket (prompt menor, decisão mais rápida no CPU)."""
+        tools = self.registry.list()
+        if not full and bucket in _BUCKET_CATEGORIES:
+            cats = _BUCKET_CATEGORIES[bucket] | {"memória"}
+            subset = [t for t in tools if t.category in cats]
+            if subset:
+                tools = subset
+        return "\n".join(f"- {t.name}: {t.description}" for t in tools)
+
+    def _decide_prompt(self, tool_block: str) -> str:
+        return (
             "You decide which tool answers the user. Tools:\n"
             f"{tool_block}\n"
             "Reply ONLY with a JSON object: {\"tool\": \"<name>\", \"args\": {…}} "
@@ -228,6 +270,14 @@ class Orchestrator:
             "Use {\"tool\": null} if no tool is needed."
             f"{_memory_snippet()}"
         )
+
+    async def _run_with_tools(self, prompt: str, history: list[dict[str, str]],
+                              bucket: str | None = None) -> str:
+        """Classic loop: LLM decides tool → confirm if risky → execute → explain."""
+        tool_names = [t.name for t in self.registry.list()]
+        await self._progress("🔎 escolhendo ferramenta…")
+        # 1º chute com a lista filtrada pelo bucket (mais rápido).
+        decide_prompt = self._decide_prompt(self._tool_block(bucket))
         decision = await self._decide_tool(decide_prompt, prompt)
         chosen, args, well_formed = self._extract_tool(decision)
 
@@ -238,8 +288,11 @@ class Orchestrator:
                 else "não veio em JSON válido"
             )
             log_event("warning", "orchestrator", f"decisão do LLM {reason}; tentando de novo")
+            # Retry com a lista COMPLETA — se a ferramenta certa tiver ficado de
+            # fora do filtro, ela aparece agora.
+            full_prompt = self._decide_prompt(self._tool_block(bucket, full=True))
             retry_prompt = (
-                f"{decide_prompt}\n\nSua resposta anterior {reason}. "
+                f"{full_prompt}\n\nSua resposta anterior {reason}. "
                 "Responda de novo com APENAS o JSON, sem texto extra, "
                 "escolhendo um nome EXATO da lista acima, ou {\"tool\": null}."
             )
@@ -273,6 +326,7 @@ class Orchestrator:
         if spec.requires_confirmation:
             log_event("warning", "orchestrator",
                       f"{chosen} executado sem confirmação (safe_mode=advanced): {args}")
+        await self._progress(f"🔧 executando `{chosen}`…")
         return await self._run_chosen(prompt, history, chosen, args)
 
     async def _decide_tool(self, system_prompt: str, user_prompt: str) -> str:
@@ -418,7 +472,7 @@ class Orchestrator:
             )},
             {"role": "user", "content": f"Pergunta: {ctx.prompt}\n\nResultado real da ferramenta {tool}:\n{_truncate_for_synthesis(result)}"},
         ]
-        return (await self.provider.complete(messages)).strip()
+        return await stream_or_complete(self.provider, messages, self._on_delta)
 
     async def _synthesize_no_tool(self, prompt: str, history: list[dict[str, str]]) -> str:
         messages = [
@@ -430,4 +484,4 @@ class Orchestrator:
             *history[-6:],
             {"role": "user", "content": prompt},
         ]
-        return (await self.provider.complete(messages)).strip()
+        return await stream_or_complete(self.provider, messages, self._on_delta)

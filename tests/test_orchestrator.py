@@ -291,3 +291,108 @@ async def test_synthesize_approved_skips_synthesis_for_tool_error():
         "erro: Não consegui conectar no MCP Server do Burp (http://127.0.0.1:9876/)"
     )
     assert not provider.calls  # síntese nunca chamada
+
+
+class _StreamingDecideProvider:
+    """complete() devolve a decisão de ferramenta (JSON); stream_chat() emite
+    a síntese final em pedaços — pra provar que o on_delta é repassado ponta a
+    ponta pelo caminho de ferramenta."""
+
+    def __init__(self, decision: str, synth_chunks: list[str]) -> None:
+        self.decision = decision
+        self.synth_chunks = synth_chunks
+        self.stream_calls = 0
+
+    async def complete(self, messages: list[dict], **extra) -> str:
+        return self.decision
+
+    async def stream_chat(self, messages: list[dict], **extra):
+        self.stream_calls += 1
+        for c in self.synth_chunks:
+            yield c
+
+
+def _registry_with_read_tool() -> ToolRegistry:
+    reg = ToolRegistry()
+
+    async def _fn(args: dict) -> str:
+        return "Interfaces: lo, enp6s0"
+
+    reg.register(
+        "network_interfaces", "Lista interfaces de rede.", _fn,
+        risk="info", requires_confirmation=False, required_args=(),
+    )
+    return reg
+
+
+async def test_run_streams_synthesis_via_on_delta():
+    provider = _StreamingDecideProvider(
+        '{"tool": "network_interfaces", "args": {}}',
+        ["As ", "interfaces ", "sao lo e enp6s0"],
+    )
+    orch = Orchestrator(provider, _registry_with_read_tool(), ConfirmationStore())
+    seen: list[str] = []
+
+    async def on_delta(text: str) -> None:
+        seen.append(text)
+
+    result = await orch.run("lista minhas interfaces de rede", [], on_delta=on_delta)
+    assert provider.stream_calls == 1
+    assert seen == ["As ", "As interfaces ", "As interfaces sao lo e enp6s0"]
+    assert result == "As interfaces sao lo e enp6s0"
+    assert orch.last_tool_calls[0]["tool"] == "network_interfaces"
+
+
+def _registry_mixed_categories() -> ToolRegistry:
+    reg = ToolRegistry()
+
+    async def _fn(args: dict) -> str:
+        return "ok"
+
+    reg.register("network_interfaces", "rede.", _fn, category="rede")
+    reg.register("system_info", "sistema.", _fn, category="sistema")
+    reg.register("nmap_scan", "scan.", _fn, category="ofensivo",
+                 requires_confirmation=True, required_args=("host",), target_arg="host")
+    reg.register("recall", "memoria.", _fn, category="memória")
+    return reg
+
+
+def test_tool_block_filters_by_bucket():
+    orch = Orchestrator(_ScriptedProvider([""]), _registry_mixed_categories(),
+                        ConfirmationStore())
+    sysblock = orch._tool_block("system")
+    assert "system_info" in sysblock and "recall" in sysblock  # sistema + memória
+    assert "nmap_scan" not in sysblock  # ofensivo fica de fora do bucket system
+    # full=True traz tudo, inclusive o ofensivo
+    assert "nmap_scan" in orch._tool_block("system", full=True)
+
+
+def test_tool_block_unknown_bucket_returns_all():
+    orch = Orchestrator(_ScriptedProvider([""]), _registry_mixed_categories(),
+                        ConfirmationStore())
+    block = orch._tool_block(None)
+    for name in ("network_interfaces", "system_info", "nmap_scan", "recall"):
+        assert name in block
+
+
+async def test_run_emits_progress_events():
+    provider = _StreamingDecideProvider(
+        '{"tool": "network_interfaces", "args": {}}',
+        ["pronto"],
+    )
+    reg = ToolRegistry()
+
+    async def _fn(args: dict) -> str:
+        return "Interfaces: lo"
+
+    reg.register("network_interfaces", "Lista interfaces.", _fn,
+                 category="rede", requires_confirmation=False)
+    orch = Orchestrator(provider, reg, ConfirmationStore())
+    progress: list[str] = []
+
+    async def on_progress(msg: str) -> None:
+        progress.append(msg)
+
+    await orch.run("lista interfaces de rede", [], on_progress=on_progress)
+    assert any("escolhendo ferramenta" in p for p in progress)
+    assert any("executando" in p and "network_interfaces" in p for p in progress)

@@ -222,6 +222,25 @@ testar isoladamente); o resto do código fica bem acima dos 80%.
 
 ---
 
+## Lab de treino (alvo local autorizado)
+
+`lab/` traz uma app **deliberadamente vulnerável** (SQLi, XSS refletido, auth
+fraca, rotas enumeráveis, banner de versão) que sobe **só em `127.0.0.1`** —
+alvo real e legal pra exercitar `nmap`/`sqlmap`/`gobuster`/`nikto`/`hydra` e
+fechar o ciclo achar→explorar→reportar sem tocar em terceiros. Só usa a
+stdlib do Python (não instala nada). Detalhes e exemplos em [`lab/README.md`](lab/README.md).
+
+```bash
+./lab/run_lab.sh                 # sobe em http://127.0.0.1:8666
+gobuster dir -u http://127.0.0.1:8666 -w lab/wordlist.txt
+sqlmap -u "http://127.0.0.1:8666/login?user=admin&pass=x" --batch
+```
+
+O `127.0.0.1` já está no escopo autorizado, então dá pra pedir direto no chat:
+*"faz um nmap no 127.0.0.1 porta 8666 e depois enumera diretórios"*.
+
+---
+
 ## Roadmap
 
 - **Fase 1** ✅ chat + ferramentas de leitura + Safety Layer + UI
@@ -235,6 +254,21 @@ testar isoladamente); o resto do código fica bem acima dos 80%.
   interativo no navegador do usuário contra a própria conta Google — não é algo que dá
   pra automatizar/decidir por ele). Sem isso resolvido manualmente, a integração fica pendente.
 - **Hardening** ✅ `API_TOKEN` opcional + rate limit por IP em `/api/*`
+- **Streaming real** ✅ o chat agora emite os tokens da resposta ao vivo (SSE) +
+  eventos de progresso ("🔎 escolhendo ferramenta…" / "🔧 executando `X`…" /
+  "🧭 montando plano…") nas fases lentas antes da síntese — antes o backend
+  juntava a resposta inteira e só pintava no fim (tela em branco ~1min no CPU)
+- **Fix de roteamento** ✅ pedidos de leitura simples (ex: "lista minhas
+  interfaces") não caem mais por engano no pipeline caro de 3 chamadas ao LLM
+- **Decisão de ferramenta mais rápida** ✅ o prompt de decisão manda só as
+  ferramentas do domínio do pedido (filtro por bucket do `classify()`), com
+  fallback pra lista completa no retry — prompt menor = decisão mais rápida no CPU
+- **Lab de treino** ✅ `lab/` — app vulnerável local (SQLi, XSS, command
+  injection, path traversal, IDOR, SSRF, auth fraca + 2º alvo) pra exercitar as
+  ferramentas ofensivas end-to-end (ver seção acima)
+- **Instalador de ferramentas** ✅ `./install-tools.sh` detecta e instala o que
+  falta (nmap/sqlmap/gobuster/nikto/hydra/radare2/yara/exploitdb via pacman,
+  holehe/sherlock via pipx); mensagem de erro das tools aponta pra ele
 
 ---
 

@@ -26,11 +26,14 @@ class ChatService:
         self.store = store or ConfirmationStore()
         self.orchestrator = Orchestrator(provider, registry, self.store, research_provider)
 
-    async def stream(self, user_message: str) -> dict[str, object]:
+    async def stream(self, user_message: str, on_delta=None,
+                     on_progress=None) -> dict[str, object]:
         """Process one message and persist everything.
 
-        Returns metadata plus the final assistant text (the caller streams
-        it to the client as it is produced).
+        Returns metadata plus the final assistant text. When `on_delta` is
+        given (SSE), the orchestrator streams the growing answer to it live
+        while the model generates; the returned dict still carries the final
+        text for persistence.
         """
         clean = sanitize_text(user_message.strip())
         if not clean:
@@ -40,7 +43,8 @@ class ChatService:
         history = database.history(limit=8)
 
         try:
-            result = await self.orchestrator.run(clean, history)
+            result = await self.orchestrator.run(
+                clean, history, on_delta=on_delta, on_progress=on_progress)
         except (TimeoutError, RuntimeError) as exc:
             log_event("danger", "chat", f"erro não tratado: {exc}")
             raise

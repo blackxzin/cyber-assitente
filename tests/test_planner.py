@@ -38,6 +38,31 @@ def test_is_complex_task_rejects_simple_requests():
     assert not is_complex_task("qual a hora")
 
 
+def test_is_complex_task_does_not_misfire_on_single_tool_reads():
+    # Regressão: o regex antigo tinha `lista.*e`, `precis.*de` e `todas/todos`
+    # gulosos — "lista minhas intErfaces" casava qualquer "e" na frase e jogava
+    # uma leitura de 1 ferramenta no pipeline caro (planner+validator+síntese =
+    # ~90s no modelo local). Estes DEVEM ser tratados como simples.
+    for simple in [
+        "lista minhas interfaces de rede",
+        "lista portas locais",
+        "mostra todos os processos",
+        "preciso de ajuda",
+        "qual meu ip",
+    ]:
+        assert not is_complex_task(simple), simple
+
+
+def test_is_complex_task_still_catches_real_multistep():
+    for complex_req in [
+        "escaneia 10.0.0.5 e depois busca exploits",
+        "faz um pentest completo no host",
+        "analise o binario e depois gere relatorio",
+        "primeiro escaneia, depois enumera diretorios",
+    ]:
+        assert is_complex_task(complex_req), complex_req
+
+
 async def test_plan_parses_valid_json_steps():
     provider = _ScriptedProvider(
         '{"steps": [{"id": 1, "description": "testa conexão", "tool": "connectivity", "args": {"host": "8.8.8.8"}},'

@@ -11,11 +11,21 @@ if TYPE_CHECKING:
     from tools.registry import ToolRegistry
 
 
+# Só dispara o pipeline caro (planner+executor+validator+síntese = 3+ chamadas
+# ao LLM) quando o pedido é MESMO multi-passo. Sinais fracos e gulosos foram
+# removidos de propósito: `lista.*e` casava "lista minhas intErfaces" (qualquer
+# "e" na frase), `precis.*de` casava "preciso de ajuda", e `todas/todos` casava
+# "mostra todos os processos" — todos leituras de 1 ferramenta que não podem
+# pagar 90s de pipeline. Sequência real é capturada por "e depois"/"em seguida"/
+# "primeiro...depois"/"passo a passo".
 _COMPLEX_RE = re.compile(
-    r"\b(completo?|completa|full|tudo(?!\s+(?:bem|bom|certo|ok|tranquilo))|"
-    r"analise|investiga|auditoria|report|relatorio|"
-    r"varredura|pentest|diagnos|passo.*passo|precis.*de|lista.*e|e depois|"
-    r"em seguida|primeiro.*depois|varias|varios|multipla|multiplo|todas|todos)\b",
+    r"\b(?:completo|completa|full|"
+    r"analis[ae]\w*|investig\w+|auditoria|report|relat[oó]rio|"
+    r"varredura|pentest|diagnos\w*|"
+    r"passo a passo|e depois|em seguida|"
+    r"v[aá]rios|v[aá]rias|m[uú]ltipl[oa]s?)\b"
+    r"|\btudo\b(?!\s+(?:bem|bom|certo|ok|tranquilo))"
+    r"|\bprimeiro\b.{0,40}\bdepois\b",
     re.IGNORECASE,
 )
 
