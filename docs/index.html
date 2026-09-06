@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Cyber Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef2f0; --surface:#ffffff; --surface-2:#f4f7f5; --term:#0d1512;
+    --ink:#101c19; --muted:#566661; --line:#d7e0dc; --line-2:#e6ece9;
+    --accent:#0c7d6a; --accent-ink:#ffffff; --accent-dim:#0c7d6a22;
+    --info:#0e8bb8; --moderate:#b7791f; --danger:#c8383d;
+    --term-ink:#d8efe7; --term-muted:#6f8c83; --term-line:#1c2b26;
+    --shadow:0 1px 2px #0c231d0f,0 12px 34px -18px #0c231d33;
+    --radius:14px;
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme:dark){
+      --bg:#080c0b; --surface:#0f1614; --surface-2:#141e1b; --term:#0a110f;
+      --ink:#e7efec; --muted:#8fa39d; --line:#213029; --line-2:#1a2622;
+      --accent:#2ee6bd; --accent-ink:#06130f; --accent-dim:#2ee6bd1f;
+      --info:#43c3ea; --moderate:#e0a53b; --danger:#f0595e;
+      --term-ink:#dff3ec; --term-muted:#7c968d; --term-line:#1c2b26;
+      --shadow:0 1px 0 #ffffff08,0 24px 60px -30px #000000cc;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#080c0b; --surface:#0f1614; --surface-2:#141e1b; --term:#0a110f;
+    --ink:#e7efec; --muted:#8fa39d; --line:#213029; --line-2:#1a2622;
+    --accent:#2ee6bd; --accent-ink:#06130f; --accent-dim:#2ee6bd1f;
+    --info:#43c3ea; --moderate:#e0a53b; --danger:#f0595e;
+    --term-ink:#dff3ec; --term-muted:#7c968d; --term-line:#1c2b26;
+    --shadow:0 1px 0 #ffffff08,0 24px 60px -30px #000000cc;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  a{color:inherit}
+  ::selection{background:var(--accent-dim)}
+  .wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* ---- top bar ---- */
+  header.bar{
+    position:sticky;top:0;z-index:40;
+    background:color-mix(in srgb,var(--bg) 86%,transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .bar-in{display:flex;align-items:center;gap:14px;height:60px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-dim)}
+  .brand .mono{font-size:15px}
+  .bar-tag{font-size:12px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:3px 10px}
+  .spacer{flex:1}
+  .tbtn{
+    font:inherit;font-size:13px;cursor:pointer;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;display:inline-flex;align-items:center;gap:7px;
+    transition:color .15s,border-color .15s;
+  }
+  .tbtn:hover{color:var(--ink);border-color:var(--accent)}
+  .tbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ---- hero ---- */
+  .hero{padding:56px 0 30px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 16px;font-weight:600}
+  h1{
+    font-family:"IBM Plex Mono",monospace;font-weight:600;
+    font-size:clamp(2.1rem,6vw,3.5rem);line-height:1.04;letter-spacing:-.02em;
+    margin:0 0 18px;text-wrap:balance;
+  }
+  h1 .hl{color:var(--accent)}
+  .lede{font-size:clamp(1.02rem,2.4vw,1.22rem);color:var(--muted);
+    max-width:60ch;margin:0 0 26px;text-wrap:pretty}
+  .stats{display:flex;flex-wrap:wrap;gap:26px;margin-top:8px}
+  .stat .n{font-family:"IBM Plex Mono",monospace;font-size:1.5rem;font-weight:700;
+    color:var(--ink);font-variant-numeric:tabular-nums}
+  .stat .l{font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+
+  /* ---- terminal ---- */
+  .term-shell{margin:34px 0 8px}
+  .term{
+    background:var(--term);border:1px solid var(--term-line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;position:relative;
+  }
+  .term-top{display:flex;align-items:center;gap:8px;padding:12px 16px;
+    border-bottom:1px solid var(--term-line);background:#0000001a}
+  .tl{width:11px;height:11px;border-radius:50%;background:#3a4a44}
+  .tl.r{background:#e5484d66}.tl.y{background:#e0a53b66}.tl.g{background:#2ee6bd66}
+  .term-title{margin-left:8px;font-family:"IBM Plex Mono",monospace;font-size:12px;
+    color:var(--term-muted)}
+  .term-live{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;
+    color:var(--term-muted);display:flex;align-items:center;gap:6px}
+  .term-live .pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  .scanlines{position:absolute;inset:38px 0 0;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(to bottom,transparent 0 3px,#00000012 3px 4px)}
+  .transcript{
+    padding:20px 20px 8px;min-height:340px;max-height:min(62vh,560px);overflow-y:auto;
+    font-family:"IBM Plex Mono",monospace;font-size:13.5px;line-height:1.72;
+    color:var(--term-ink);position:relative;z-index:1;
+  }
+  .transcript::-webkit-scrollbar{width:9px}
+  .transcript::-webkit-scrollbar-thumb{background:#ffffff1a;border-radius:9px}
+  .line{white-space:pre-wrap;word-break:break-word}
+  .row{margin-bottom:15px}
+  .u-cmd{color:var(--term-ink)}
+  .u-cmd .p{color:var(--accent);font-weight:600}
+  .prog{color:var(--term-muted)}
+  .tool-out{
+    margin:9px 0 3px;padding:12px 14px;border-radius:10px;
+    background:#00000030;border:1px solid var(--term-line);
+    border-left:2px solid var(--info);color:var(--term-ink);font-size:12.8px;
+  }
+  .tool-hd{color:var(--term-muted);font-size:11.5px;margin-bottom:8px;
+    letter-spacing:.04em;text-transform:uppercase}
+  .ans{color:var(--term-ink);border-left:2px solid var(--accent);padding-left:13px;margin-top:4px}
+  .ans .who{color:var(--accent);font-weight:600}
+  .crit{color:var(--danger);font-weight:600}
+  .warnw{color:var(--moderate)}
+  .cursor{display:inline-block;width:8px;height:15px;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  /* confirm gate card */
+  .gate{margin:10px 0 4px;border:1px solid var(--moderate);border-radius:10px;
+    background:#e0a53b12;padding:14px 15px}
+  .gate-hd{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--term-ink);
+    font-size:13px;margin-bottom:6px}
+  .gate-badge{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--moderate);border:1px solid var(--moderate);border-radius:999px;padding:2px 8px}
+  .gate-body{color:var(--term-muted);font-size:12.5px;margin-bottom:12px}
+  .gate-body b{color:var(--term-ink)}
+  .gate-btns{display:flex;gap:9px}
+  .g-approve,.g-deny{font:inherit;font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+    cursor:pointer;border-radius:8px;padding:8px 16px;font-weight:600;border:1px solid transparent}
+  .g-approve{background:var(--accent);color:var(--accent-ink)}
+  .g-approve:hover{filter:brightness(1.08)}
+  .g-deny{background:transparent;color:var(--term-muted);border-color:var(--term-line)}
+  .g-deny:hover{color:var(--term-ink);border-color:var(--term-muted)}
+  .g-approve:focus-visible,.g-deny:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .idle{color:var(--term-muted)}
+  .idle .b{color:var(--term-ink)}
+
+  /* suggestion chips */
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0 4px}
+  .chip{
+    font:inherit;font-size:13px;cursor:pointer;text-align:left;
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:9px 13px;color:var(--ink);display:inline-flex;align-items:center;gap:9px;
+    transition:border-color .15s,transform .12s,background .15s;
+  }
+  .chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .chip:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .chip .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:2px 6px;
+    border-radius:5px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2)}
+  .chip .tag.off{color:var(--danger);border-color:transparent;background:color-mix(in srgb,var(--danger) 14%,transparent)}
+  .chip .tag.inf{color:var(--info);border-color:transparent;background:color-mix(in srgb,var(--info) 14%,transparent)}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:12px}
+  .hint .k{font-family:"IBM Plex Mono",monospace;color:var(--accent)}
+
+  /* ---- generic section ---- */
+  section{padding:46px 0}
+  .sec-head{margin-bottom:26px}
+  .sec-kick{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 10px;font-weight:600}
+  h2{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:clamp(1.5rem,3.6vw,2.1rem);
+    letter-spacing:-.015em;margin:0 0 10px;text-wrap:balance}
+  .sec-sub{color:var(--muted);max-width:64ch;margin:0}
+
+  /* pipeline */
+  .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 16px 18px}
+  .step .no{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--accent);font-weight:700}
+  .step h3{font-size:14.5px;margin:9px 0 6px}
+  .step p{font-size:13px;color:var(--muted);margin:0}
+  .step.guard{border-color:var(--moderate);background:color-mix(in srgb,var(--moderate) 7%,var(--surface))}
+  .step.guard .no{color:var(--moderate)}
+
+  /* arsenal */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;align-items:center}
+  .fbtn{font:inherit;font-size:12.5px;cursor:pointer;background:var(--surface);
+    border:1px solid var(--line);border-radius:999px;padding:6px 13px;color:var(--muted);
+    font-family:"IBM Plex Mono",monospace;transition:.15s}
+  .fbtn:hover{color:var(--ink)}
+  .fbtn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .fbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .fcount{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);margin-left:auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:15px 15px 16px;display:flex;flex-direction:column;gap:7px;
+    transition:border-color .15s,transform .12s}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .card-top{display:flex;align-items:center;gap:8px}
+  .card .nm{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:14px}
+  .risk{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10px;
+    letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;font-weight:600}
+  .risk.info{color:var(--info);background:color-mix(in srgb,var(--info) 13%,transparent)}
+  .risk.moderate{color:var(--moderate);background:color-mix(in srgb,var(--moderate) 15%,transparent)}
+  .card .ds{font-size:12.5px;color:var(--muted);margin:0}
+  .card .cat{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--accent)}
+  .lock{font-size:11px;color:var(--moderate);display:inline-flex;align-items:center;gap:4px}
+
+  /* callout */
+  .callout{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px;box-shadow:var(--shadow)}
+  .callout h2{margin-top:0}
+  .callout p{color:var(--muted);margin:0 0 8px;max-width:66ch}
+  .callout .em{color:var(--ink);font-weight:600}
+
+  footer{border-top:1px solid var(--line);padding:30px 0 44px;margin-top:20px;color:var(--muted);font-size:13px}
+  footer .mono{font-size:12.5px}
+  .disc{font-size:12px;color:var(--muted);opacity:.85;margin-top:8px;max-width:70ch}
+
+  @media (max-width:640px){
+    .bar-tag{display:none}
+    .transcript{font-size:12.5px}
+    .stats{gap:18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap bar-in">
+    <div class="brand"><span class="dot"></span><span class="mono">cyber</span></div>
+    <span class="bar-tag mono">red-team assistant · local · uncensored</span>
+    <span class="spacer"></span>
+    <button class="tbtn" id="theme" aria-label="Alternar tema">◐ <span id="theme-l">tema</span></button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">assistente de pentest · roda 100% na sua máquina</p>
+      <h1>O terminal pensa junto.<br><span class="hl">Você aprova o disparo.</span></h1>
+      <p class="lede">Cyber é uma IA de red-team que roda local, escolhe a ferramenta certa,
+        executa e te explica o resultado em português — recon, exploração, OSINT, engenharia
+        reversa e cripto. Ferramenta ofensiva só dispara com o seu OK.</p>
+      <div class="stats">
+        <div class="stat"><div class="n">42</div><div class="l">ferramentas</div></div>
+        <div class="stat"><div class="n">11</div><div class="l">categorias</div></div>
+        <div class="stat"><div class="n">424</div><div class="l">testes passando</div></div>
+        <div class="stat"><div class="n">0</div><div class="l">dado saindo da máquina</div></div>
+      </div>
+
+      <div class="term-shell">
+        <div class="term">
+          <div class="term-top">
+            <span class="tl r"></span><span class="tl y"></span><span class="tl g"></span>
+            <span class="term-title mono">cyber@localhost — sessão de recon</span>
+            <span class="term-live"><span class="pulse"></span>demo ao vivo</span>
+          </div>
+          <div class="scanlines"></div>
+          <div class="transcript" id="screen" aria-live="polite">
+            <div class="row idle" id="idle">
+              <div class="line">┌─ cyber pronto. modelo local carregado (DeepHat-V1-7B).</div>
+              <div class="line">└─ <span class="b">clica num comando abaixo</span> pra ver a IA escolher a ferramenta, executar e explicar. <span class="cursor"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chips" id="chips"></div>
+        <p class="hint">As saídas de recon abaixo são <span class="k">reais</span> — capturadas rodando o projeto contra <span class="k">example.com</span> e <span class="k">scanme.nmap.org</span> (alvo público oficial de teste).</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="sec-kick">o fluxo de uma mensagem</p>
+        <h2>Decide, confirma, executa, explica</h2>
+        <p class="sec-sub">Cada pedido passa por um pipeline. O passo que importa é o gate humano:
+          nenhuma ação ativa toca um alvo sem a sua aprovação explícita.</p>
+      </div>
+      <div class="pipe">
+        <div class="step"><div class="no">01</div><h3>Classifica</h3><p>Roteia o pedido pro domínio certo (rede, sistema, segurança, aprendizado).</p></div>
+        <div class="step"><div class="no">02</div><h3>Escolhe a ferramenta</h3><p>O modelo seleciona a tool e preenche os argumentos por JSON.</p></div>
+        <div class="step guard"><div class="no">03</div><h3>Confirmação humana</h3><p>Risco moderado abre um modal Aprovar / Negar. Sem clique, não roda.</p></div>
+        <div class="step"><div class="no">04</div><h3>Executa</h3><p>Roda o binário/consulta com timeout, sanitização e escopo autorizado.</p></div>
+        <div class="step"><div class="no">05</div><h3>Explica</h3><p>Sintetiza o resultado em linguagem natural — e nunca inventa dado que a tool não devolveu.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="sec-kick">o arsenal</p>
+        <h2>42 ferramentas, uma interface</h2>
+        <p class="sec-sub">De nmap e sqlmap a decodificador de JWT e inspeção de TLS. Filtra por categoria.
+          Chip <span class="mono" style="color:var(--moderate)">confirmação</span> marca o que exige seu OK antes de disparar.</p>
+      </div>
+      <div class="filters" id="filters"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="callout">
+        <p class="sec-kick">por que local</p>
+        <h2>Sem censura, sem nuvem, sem vazamento</h2>
+        <p>O cérebro é um modelo <span class="em">rodando na sua máquina</span> (DeepHat-V1-7B via Ollama).
+          Nada do que você audita sai do seu computador — nem alvo, nem credencial, nem resultado.</p>
+        <p>A persona é de <span class="em">pentester profissional</span>: fala direto, sem disclaimer,
+          trata ferramenta ofensiva como trabalho normal. O único freio é técnico — confirmação humana
+          por ação e um escopo autorizado opcional — não moral.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="mono">cyber console · demo interativa</div>
+    <p class="disc">Ferramenta de pentest pessoal/lab. As saídas de recon exibidas foram capturadas contra
+      alvos públicos de teste (example.com, scanme.nmap.org). Use só contra sistemas que você tem
+      autorização pra testar.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+  /* ---------- theme toggle ---------- */
+  var root=document.documentElement, tbtn=document.getElementById("theme"), tl=document.getElementById("theme-l");
+  var saved=null; try{saved=localStorage.getItem("cyber-theme");}catch(e){}
+  if(saved){root.setAttribute("data-theme",saved);}
+  function curTheme(){
+    var t=root.getAttribute("data-theme");
+    if(t) return t;
+    return (window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light";
+  }
+  function paintLabel(){tl.textContent=curTheme()==="dark"?"claro":"escuro";}
+  paintLabel();
+  tbtn.addEventListener("click",function(){
+    var next=curTheme()==="dark"?"light":"dark";
+    root.setAttribute("data-theme",next);
+    try{localStorage.setItem("cyber-theme",next);}catch(e){}
+    paintLabel();
+  });
+
+  /* ---------- data: real captured tool outputs ---------- */
+  var EX = [
+    {
+      id:"tls", label:"Inspeciona o TLS de example.com", tag:"info", tool:"tls_inspect",
+      cmd:"inspeciona o TLS de example.com",
+      prog:["🧭 classificando pedido… → security","🔧 executando tls_inspect(host=example.com)"],
+      confirm:false, border:"var(--info)",
+      out:"TLS de example.com:\n  protocolo: TLSv1.3\n  cipher: TLS_AES_256_GCM_SHA384\n  subject CN: example.com\n  issuer: Cloudflare TLS Issuing ECC CA 3 / SSL Corporation\n  válido: 2026-07-29 a 2026-10-27 (51 dias restantes)\n  SANs: example.com, *.example.com\n  SHA256 fingerprint: 6153a96fd1a6ab7f4d438fc34932484299d0729d9140b3a126bb2f9c07b02200",
+      ans:"Cert limpo em example.com: negocia TLSv1.3 com AES-256-GCM, certificado válido da Cloudflare por mais 51 dias, cobrindo example.com e *.example.com. Nada de expirado nem self-signed aqui — nada pra explorar no lado TLS."
+    },
+    {
+      id:"http", label:"Audita os headers de example.com", tag:"info", tool:"http_headers",
+      cmd:"audita os security headers de example.com",
+      prog:["🧭 classificando pedido… → security","🔧 executando http_headers(url=example.com)"],
+      confirm:false, border:"var(--info)",
+      out:"HTTP 200 — http://example.com\n\nBanners (tecnologia/versão):\n  server: cloudflare\n\nHeaders de segurança:\n  FALTANDO:\n    - strict-transport-security (sem HSTS: downgrade pra HTTP / SSL strip)\n    - content-security-policy (sem CSP: XSS mais fácil de explorar)\n    - x-frame-options (sem X-Frame-Options/CSP frame-ancestors: clickjacking)\n    - x-content-type-options (sem nosniff: MIME sniffing)\n    - referrer-policy (sem Referrer-Policy: vazamento de URL no Referer)\n    - permissions-policy (sem Permissions-Policy: sem restrição de APIs do browser)",
+      ans:"Sobe atrás de Cloudflare e não manda NENHUM header de segurança: sem HSTS, CSP, X-Frame-Options, nosniff, Referrer-Policy nem Permissions-Policy. É candidato a clickjacking e facilita XSS — anota como achado de baixo esforço."
+    },
+    {
+      id:"jwt", label:"Decodifica esse JWT", tag:"info", tool:"jwt_decode",
+      cmd:"decodifica esse jwt: eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc4ODcyOTEyOH0.",
+      prog:["🧭 classificando pedido… → security","🔧 executando jwt_decode(token=…)"],
+      confirm:false, border:"var(--danger)",
+      out:"JWT decodificado (assinatura NÃO verificada):\n\n== header ==\n{\n  \"alg\": \"none\"\n}\n\n== payload ==\n{\n  \"sub\": \"admin\",\n  \"exp\": 1788729128\n}\n\n== análise ==\n  - §CRÍTICO: alg='none' — servidor que aceitar isso valida token sem assinatura (troque payload à vontade).\n  - exp expirado há 10s (token vencido).\n  - Sem segmento de assinatura (token unsecured).",
+      ans:"Esse token tá quebrado de propósito: §alg=none§, sem assinatura. Se o backend aceitar, você forja o payload à vontade — muda sub pra outro usuário ou role pra admin e entra. Testa mandar um com sub=admin e alg=none e vê se passa."
+    },
+    {
+      id:"hash", label:"Que hash é esse?", tag:"info", tool:"hash_identify",
+      cmd:"que hash é esse? $2b$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      prog:["🧭 classificando pedido… → security","🔧 executando hash_identify(hash=…)"],
+      confirm:false, border:"var(--info)",
+      out:"Hash identificado: bcrypt (hashcat -m 3200).",
+      ans:"É bcrypt (prefixo $2b$, cost 12). Pra quebrar: §hashcat -m 3200§. Bcrypt é lento de propósito, então só compensa com wordlist boa (rockyou) — brute puro não vale a pena."
+    },
+    {
+      id:"dns", label:"Resolve o DNS de example.com", tag:"info", tool:"dns_lookup",
+      cmd:"resolve tudo do dns de example.com",
+      prog:["🧭 classificando pedido… → network","🔧 executando dns_lookup(domain=example.com)"],
+      confirm:false, border:"var(--info)",
+      out:"DNS de example.com (via DoH Cloudflare):\n  A: 172.66.147.243, 104.20.23.154\n  AAAA: 2606:4700:10::6814:179a, 2606:4700:10::ac42:93f3\n  MX: 0 .\n  TXT: \"v=spf1 -all\", \"_k2n1y4vw3qtb4skdx9e7dxt97qrmmq9\"\n  NS: hera.ns.cloudflare.com., elliott.ns.cloudflare.com.\n  SOA: elliott.ns.cloudflare.com. dns.cloudflare.com. 2413856909 10000 2400 604800 1800",
+      ans:"example.com fica todo na Cloudflare (NS hera/elliott). SPF é v=spf1 -all — ninguém autorizado a mandar email pelo domínio, hard fail. MX é 0 . (não recebe email). Tem um TXT de verificação. Superfície de spoofing por email: fechada."
+    },
+    {
+      id:"nmap", label:"Escaneia as portas de scanme.nmap.org", tag:"off", tool:"nmap_scan",
+      cmd:"escaneia as portas de scanme.nmap.org",
+      prog:["🧭 classificando pedido… → security","🔎 escolhendo ferramenta… → nmap_scan"],
+      confirm:true, border:"var(--info)",
+      gateTool:"nmap_scan", gateArg:"host = scanme.nmap.org",
+      out:"Starting Nmap 7.991 ( https://nmap.org )\nNmap scan report for scanme.nmap.org (45.33.32.156)\nHost is up (0.19s latency).\nNot shown: 98 closed tcp ports (conn-refused)\nPORT   STATE SERVICE\n22/tcp open  ssh\n80/tcp open  http\n\nNmap done: 1 IP address (1 host up) scanned in 2.81 seconds",
+      ans:"scanme.nmap.org tá com §22/ssh§ e §80/http§ abertos, resto fechado. Próximo passo: fingerprint de versão (nmap -sV) nessas duas portas e um gobuster no :80 pra mapear a superfície web. Quer que eu monte o plano?"
+    }
+  ];
+
+  /* ---------- terminal engine ---------- */
+  var screen=document.getElementById("screen");
+  var idle=document.getElementById("idle");
+  var chipsWrap=document.getElementById("chips");
+  var running=false;
+
+  function scrollDown(){screen.scrollTop=screen.scrollHeight;}
+  function el(cls,html){var d=document.createElement("div");if(cls)d.className=cls;if(html!=null)d.innerHTML=html;return d;}
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  // markup: §..§ wraps a critical/highlight span in answers & output
+  function markup(s){
+    return esc(s).replace(/§(.+?)§/g,'<span class="crit">$1</span>');
+  }
+  function sleep(ms){return new Promise(function(r){setTimeout(r,reduce?0:ms);});}
+
+  async function typeInto(node,text,cls,speed){
+    node.className=cls||"line";
+    if(reduce){node.innerHTML=markup(text);scrollDown();return;}
+    var i=0, plain="";
+    var cur=el("cursor"); cur.className="cursor";
+    while(i<text.length){
+      plain+=text[i]; i++;
+      node.innerHTML=markup(plain);
+      node.appendChild(cur);
+      if(i%2===0){await sleep(speed||14);scrollDown();}
+    }
+    node.innerHTML=markup(plain);
+    scrollDown();
+  }
+
+  function makeGate(ex){
+    return new Promise(function(resolve){
+      var g=el("gate");
+      g.innerHTML=
+        '<div class="gate-hd"><span>🔒 Confirmação necessária</span>'+
+        '<span class="gate-badge">risco moderado</span></div>'+
+        '<div class="gate-body">Cyber quer executar <b>'+esc(ex.gateTool)+'</b> com <b>'+esc(ex.gateArg)+'</b>. '+
+        'Ferramenta ativa contra alvo externo — precisa do seu OK.</div>'+
+        '<div class="gate-btns">'+
+        '<button class="g-approve">Aprovar ▸</button>'+
+        '<button class="g-deny">Negar</button></div>';
+      screen.appendChild(g); scrollDown();
+      var done=false;
+      g.querySelector(".g-approve").addEventListener("click",function(){
+        if(done)return;done=true;
+        g.querySelector(".gate-btns").innerHTML='<span class="mono" style="color:var(--accent);font-size:12.5px">✓ aprovado — disparando</span>';
+        resolve(true);
+      });
+      g.querySelector(".g-deny").addEventListener("click",function(){
+        if(done)return;done=true;
+        g.querySelector(".gate-btns").innerHTML='<span class="mono" style="color:var(--term-muted);font-size:12.5px">✗ negado — nada foi executado</span>';
+        resolve(false);
+      });
+    });
+  }
+
+  async function run(ex){
+    if(running)return; running=true;
+    if(idle&&idle.parentNode){idle.parentNode.removeChild(idle);idle=null;}
+    setChips(true);
+
+    // user command
+    var row=el("row"); screen.appendChild(row);
+    var cmdLine=el("line u-cmd"); row.appendChild(cmdLine);
+    cmdLine.innerHTML='<span class="p">cyber&nbsp;❯</span> ';
+    var span=document.createElement("span"); cmdLine.appendChild(span);
+    await typeInto(span,ex.cmd,"",18);
+    await sleep(260);
+
+    // progress
+    var prow=el("row"); screen.appendChild(prow);
+    for(var i=0;i<ex.prog.length;i++){
+      var pl=el("line prog"); prow.appendChild(pl);
+      pl.textContent=ex.prog[i];
+      scrollDown();
+      await sleep(reduce?0:520);
+    }
+
+    // confirmation gate
+    if(ex.confirm){
+      var ok=await makeGate(ex);
+      if(!ok){
+        var d=el("row"); var dl=el("line ans");
+        dl.innerHTML='<span class="who">cyber ❯</span> Beleza, não rodei nada. É só aprovar quando quiser disparar.';
+        d.appendChild(dl); screen.appendChild(d); scrollDown();
+        finish(); return;
+      }
+      await sleep(300);
+    }
+
+    // tool output
+    var orow=el("row"); screen.appendChild(orow);
+    var box=el("tool-out"); box.style.borderLeftColor=ex.border||"var(--info)";
+    box.appendChild(el("tool-hd",'saída · '+esc(ex.tool)));
+    var pre=el("line"); pre.innerHTML=markup(ex.out);
+    box.appendChild(pre); orow.appendChild(box); scrollDown();
+    await sleep(reduce?0:420);
+
+    // synthesized answer
+    var arow=el("row"); screen.appendChild(arow);
+    var aline=el("line ans"); arow.appendChild(aline);
+    aline.innerHTML='<span class="who">cyber ❯</span> ';
+    var asp=document.createElement("span"); aline.appendChild(asp);
+    await typeInto(asp,ex.ans,"",reduce?0:12);
+
+    finish();
+  }
+  function finish(){running=false;setChips(false);scrollDown();}
+
+  /* ---------- chips ---------- */
+  var chipEls=[];
+  function setChips(dis){chipEls.forEach(function(c){c.disabled=dis;});}
+  EX.forEach(function(ex){
+    var b=document.createElement("button");
+    b.className="chip";
+    var tagCls=ex.tag==="off"?"tag off":"tag inf";
+    var tagTxt=ex.tag==="off"?"confirmação":"auto";
+    b.innerHTML='<span>'+esc(ex.label)+'</span><span class="'+tagCls+'">'+tagTxt+'</span>';
+    b.addEventListener("click",function(){run(ex);});
+    chipsWrap.appendChild(b); chipEls.push(b);
+  });
+
+  /* ---------- arsenal ---------- */
+  var TOOLS = [{"name": "burp_find_vulnerabilities", "cat": "burp", "risk": "moderate", "confirm": true, "desc": "Varre o Proxy history do Burp procurando vulnerabilidades (SQLi refletido, XSS refletido, cookie inseguro, banner de versão, stack trace, headers de segurança ausentes). 'max_pages' opcional."}, {"name": "burp_proxy_history", "cat": "burp", "risk": "moderate", "confirm": true, "desc": "Lista as últimas requisições capturadas no Proxy history do Burp Suite ('limit' opcional)."}, {"name": "burp_search_history", "cat": "burp", "risk": "moderate", "confirm": true, "desc": "Busca um termo no Proxy history do Burp (informe 'query'; 'max_results' e 'max_pages' opcionais) — evita procurar na mão."}, {"name": "burp_send_request", "cat": "burp", "risk": "moderate", "confirm": true, "desc": "Envia uma requisição HTTP através do Burp Suite, como no Repeater (informe 'url'; 'method', 'headers' e 'body' opcionais)."}, {"name": "connectivity", "cat": "diagnóstico", "risk": "info", "confirm": false, "desc": "Testa conectividade TCP com um host (informe 'host'; porta opcional)."}, {"name": "cpf_osint", "cat": "osint", "risk": "moderate", "confirm": true, "desc": "Busca contas associadas a um CPF via cpfFinder (informe 'cpf' com 11 dígitos)."}, {"name": "disk_info", "cat": "sistema", "risk": "info", "confirm": false, "desc": "Uso de disco."}, {"name": "dns_lookup", "cat": "web", "risk": "info", "confirm": false, "desc": "Resolve registros DNS (A/AAAA/MX/TXT/NS/CNAME/SOA) via DNS-over-HTTPS, sem tocar o alvo (informe 'domain'; 'type' opcional)."}, {"name": "dns_servers", "cat": "rede", "risk": "info", "confirm": false, "desc": "Lista os servidores DNS configurados."}, {"name": "domain_whois", "cat": "osint", "risk": "info", "confirm": false, "desc": "Consulta WHOIS de um domínio: registrante, datas, nameservers (informe 'domain')."}, {"name": "email_osint", "cat": "osint", "risk": "moderate", "confirm": true, "desc": "Descobre em quais sites um email está cadastrado, via holehe (informe 'email')."}, {"name": "encode_decode", "cat": "cripto", "risk": "info", "confirm": false, "desc": "Codifica/decodifica texto: base64/hex/url/rot13 (informe 'op' e 'text')."}, {"name": "gobuster_scan", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Enumera diretórios/arquivos de uma URL com gobuster (informe 'url'; 'wordlist' opcional)."}, {"name": "hash_identify", "cat": "cripto", "risk": "info", "confirm": false, "desc": "Identifica o tipo de um hash e sugere o modo do hashcat (informe 'hash')."}, {"name": "http_headers", "cat": "web", "risk": "info", "confirm": false, "desc": "Faz um GET no alvo e audita banners de tecnologia, headers de segurança (HSTS/CSP/X-Frame/etc) e flags de cookie (informe 'url')."}, {"name": "hydra_bruteforce", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Testa credenciais contra um serviço com hydra (informe 'host', 'service', 'username', 'wordlist'; 'port' opcional)."}, {"name": "jwt_decode", "cat": "cripto", "risk": "info", "confirm": false, "desc": "Decodifica header/payload de um JWT (sem verificar assinatura) e aponta falhas (alg=none, HS/RS confusion, exp) — informe 'token'."}, {"name": "local_ports", "cat": "diagnóstico", "risk": "info", "confirm": false, "desc": "Lista as portas TCP/UDP locais em escuta no sistema."}, {"name": "memory_info", "cat": "sistema", "risk": "info", "confirm": false, "desc": "Uso de memória RAM e swap."}, {"name": "network_interfaces", "cat": "rede", "risk": "info", "confirm": false, "desc": "Lista as interfaces de rede e seus IPs."}, {"name": "network_routes", "cat": "rede", "risk": "info", "confirm": false, "desc": "Mostra as rotas da tabela de roteamento."}, {"name": "nikto_scan", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Varre vulnerabilidades web de uma URL com nikto (informe 'url')."}, {"name": "nmap_scan", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Escaneia portas/serviços de um host com nmap (informe 'host'; IP ou nome)."}, {"name": "packet_capture", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Captura pacotes de uma interface e resume o tráfego (informe 'iface', 'count' e 'timeout' opcionais)."}, {"name": "process_list", "cat": "sistema", "risk": "info", "confirm": false, "desc": "Lista os processos com maior uso de memória."}, {"name": "re_analyze", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Análise automática radare2 (funções detectadas) de um binário local (informe 'path'; requer radare2 instalado)."}, {"name": "re_disasm", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Disassembly (objdump, Intel) de um binário local (informe 'path'; 'symbol' opcional)."}, {"name": "re_file_info", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Identifica tipo/arquitetura de um arquivo local (informe 'path')."}, {"name": "re_headers", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Mostra cabeçalho ELF + seções de um binário local (informe 'path')."}, {"name": "re_strings", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Extrai strings imprimíveis de um arquivo local (informe 'path'; 'min_len' e 'filter' opcionais)."}, {"name": "re_symbols", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Lista símbolos (funções, variáveis) de um binário local (informe 'path')."}, {"name": "re_yara_scan", "cat": "engenharia-reversa", "risk": "info", "confirm": false, "desc": "Triagem de malware por regra YARA num arquivo local (informe 'path'; 'rules' opcional, requer yara instalado)."}, {"name": "recall", "cat": "memória", "risk": "info", "confirm": false, "desc": "Lista fatos guardados anteriormente (opcional 'query' pra filtrar)."}, {"name": "recent_logs", "cat": "diagnóstico", "risk": "info", "confirm": false, "desc": "Mostra os últimos eventos de segurança registrados no banco."}, {"name": "remember", "cat": "memória", "risk": "info", "confirm": false, "desc": "Guarda um fato pra lembrar depois, entre sessões (informe 'content')."}, {"name": "searchsploit_lookup", "cat": "exploração", "risk": "info", "confirm": false, "desc": "Busca exploits conhecidos offline (exploit-db local) por serviço/versão (informe 'query'; ex: 'Apache 2.4.49'). Roda automático depois de todo nmap_scan."}, {"name": "sqlmap_scan", "cat": "ofensivo", "risk": "moderate", "confirm": true, "desc": "Testa injeção SQL numa URL com sqlmap (informe 'url'; 'data' e 'cookie' opcionais)."}, {"name": "subdomain_enum", "cat": "osint", "risk": "info", "confirm": false, "desc": "Enumera subdomínios via certificate transparency, sem tocar o alvo (informe 'domain')."}, {"name": "system_info", "cat": "sistema", "risk": "info", "confirm": false, "desc": "Informações do sistema (SO, kernel, hostname, uptime, load)."}, {"name": "systemd_services", "cat": "diagnóstico", "risk": "info", "confirm": false, "desc": "Lista os serviços systemd atualmente em execução."}, {"name": "tls_inspect", "cat": "web", "risk": "info", "confirm": false, "desc": "Abre TLS no host e reporta certificado (issuer/validade/SANs/fingerprint) e protocolo/cipher; flag pra expirado/self-signed (informe 'host'; 'port' opcional)."}, {"name": "username_osint", "cat": "osint", "risk": "moderate", "confirm": true, "desc": "Busca um username em centenas de redes sociais, via sherlock (informe 'username')."}];
+  var CATMETA = {
+    "ofensivo":"ofensivo","exploração":"exploração","web":"recon web",
+    "engenharia-reversa":"eng. reversa","osint":"osint","burp":"burp",
+    "cripto":"cripto","rede":"rede","sistema":"sistema",
+    "diagnóstico":"diagnóstico","memória":"memória"
+  };
+  var ORDER=["ofensivo","exploração","web","engenharia-reversa","osint","burp","cripto","rede","sistema","diagnóstico","memória"];
+  var grid=document.getElementById("grid");
+  var filters=document.getElementById("filters");
+  var active="todas";
+
+  function catRank(c){var i=ORDER.indexOf(c);return i<0?99:i;}
+  TOOLS.sort(function(a,b){return catRank(a.cat)-catRank(b.cat)||a.name.localeCompare(b.name);});
+
+  function shortDesc(d){
+    var i=d.indexOf(" (informe");
+    if(i>0)d=d.slice(0,i);
+    return d.length>115?d.slice(0,112)+"…":d;
+  }
+  function render(){
+    grid.innerHTML="";
+    var shown=0;
+    TOOLS.forEach(function(t){
+      if(active!=="todas"&&t.cat!==active)return;
+      shown++;
+      var c=el("card");
+      var lock=t.confirm?'<span class="lock">🔒 confirmação</span>':"";
+      c.innerHTML=
+        '<div class="card-top"><span class="nm">'+esc(t.name)+'</span>'+
+        '<span class="risk '+t.risk+'">'+t.risk+'</span></div>'+
+        '<p class="ds">'+esc(shortDesc(t.desc))+'</p>'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-top:2px">'+
+        '<span class="cat">'+esc(CATMETA[t.cat]||t.cat)+'</span>'+lock+'</div>';
+      grid.appendChild(c);
+    });
+    document.getElementById("fcount").textContent=shown+" / "+TOOLS.length+" ferramentas";
+  }
+  function mkFilter(label,val){
+    var b=document.createElement("button");
+    b.className="fbtn"; b.textContent=label;
+    b.setAttribute("aria-pressed",val===active?"true":"false");
+    b.addEventListener("click",function(){
+      active=val;
+      Array.prototype.forEach.call(filters.children,function(x){x.setAttribute("aria-pressed","false");});
+      b.setAttribute("aria-pressed","true");
+      render();
+    });
+    filters.appendChild(b);
+  }
+  mkFilter("todas","todas");
+  ORDER.forEach(function(c){ if(TOOLS.some(function(t){return t.cat===c;})) mkFilter(CATMETA[c]||c,c); });
+  var fc=document.createElement("span"); fc.className="fcount"; fc.id="fcount"; filters.appendChild(fc);
+  render();
+})();
+</script>
+</body>
+</html>

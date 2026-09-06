@@ -6,7 +6,23 @@ Assistente pessoal de **pentest/red-team** para Linux, com IA local (Ollama),
 agentes especializados, ferramentas ofensivas **com confirmação humana**,
 terminal controlado, dashboard e uma **personagem animada** como interface visual.
 
-![status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)
+<p align="center">
+  <a href="https://blackxzin.github.io/cyber-assitente/"><strong>▶ Ver demo ao vivo →</strong></a>
+</p>
+
+<p align="center">
+  <img alt="status" src="https://img.shields.io/badge/status-em%20desenvolvimento-orange?style=flat-square">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776ab?style=flat-square&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="IA local" src="https://img.shields.io/badge/IA-local%20(Ollama)-000000?style=flat-square&logo=ollama&logoColor=white">
+  <img alt="Ferramentas" src="https://img.shields.io/badge/ferramentas-42-2E5BFF?style=flat-square">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-424%20passing-0B7A48?style=flat-square">
+</p>
+
+> A **demo** é interativa: um terminal que roda o Cyber com saídas de recon **reais**
+> (capturadas contra `example.com` e `scanme.nmap.org`), mostra o gate de confirmação
+> nas ferramentas ofensivas e lista o arsenal completo. É uma página estática única
+> (`docs/index.html`) — nada executa de verdade no navegador.
 
 ---
 
