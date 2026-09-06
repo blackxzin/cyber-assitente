@@ -308,8 +308,8 @@ async function ackAlert(id) {
 
 // ---- security ----
 const _CATEGORY_ORDER = [
-  "ofensivo", "exploração", "engenharia-reversa", "osint", "burp",
-  "rede", "sistema", "diagnóstico", "memória", "geral",
+  "ofensivo", "exploração", "web", "engenharia-reversa", "osint", "burp",
+  "cripto", "rede", "sistema", "diagnóstico", "memória", "geral",
 ];
 
 async function loadSecurity() {

@@ -33,6 +33,21 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - `domain_whois` — WHOIS de domínio (registrante, datas, nameservers), via `python-whois`;
   - `subdomain_enum` — enumera subdomínios por certificate transparency ([crt.sh](https://crt.sh),
     às vezes instável/rate-limited — falha vira mensagem de erro clara, não trava o chat).
+- **Recon web** (sem binário externo — httpx/ssl já são dependências, então roda em qualquer
+  máquina; risco `info`):
+  - `http_headers` — um GET no alvo e laudo de banners de tecnologia/versão, headers de
+    segurança faltando (HSTS/CSP/X-Frame/nosniff/Referrer/Permissions) e flags de cookie
+    (Secure/HttpOnly/SameSite);
+  - `tls_inspect` — abre handshake TLS e lê o certificado (issuer/validade/SANs/fingerprint
+    SHA256) + protocolo/cipher negociados, sinalizando expirado/self-signed/verificação falha;
+  - `dns_lookup` — resolve A/AAAA/MX/TXT/NS/CNAME/SOA via DNS-over-HTTPS (não fala direto com a
+    infra do alvo).
+- **Cripto offline** (puro Python, nunca toca rede/binário; risco `info`):
+  - `jwt_decode` — decodifica header/payload de um JWT sem verificar assinatura e aponta falhas
+    (`alg=none`, HS/RS key-confusion, `exp` vencido);
+  - `hash_identify` — identifica o tipo de um hash por formato/comprimento e sugere o modo do
+    `hashcat` (`-m`);
+  - `encode_decode` — base64/hex/url/rot13 encode e decode.
 - **Engenharia reversa** de binário/malware/firmware local (sem confirmação — arquivo local
   apontado pelo operador, não toca alvo remoto): `re_file_info` (tipo/arquitetura via `file`),
   `re_strings` (strings impressas, com filtro), `re_symbols` (`nm`, cai pra `readelf` se strip),

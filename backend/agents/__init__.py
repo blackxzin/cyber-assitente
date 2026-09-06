@@ -76,7 +76,7 @@ _KEYWORDS: list[tuple[str, str]] = [
     ("learning", r"\b(?:explica|aprend|ensinar|professor|conceito|tutorial|o que é|o que e)\b"),
     ("network", r"\b(?:rede|net|ip|interface|dns|route|conex|banda|ping|wifi)\b"),
     ("system", r"\b(?:cpu|ram|mem|disk|proces|servi|sistema|hardware|boot|kernel)\b"),
-    ("security", r"\b(?:secur|vuln|scan|porta|log|alerta|firewall|nmap|backup|hardening)\b"),
+    ("security", r"\b(?:secur|vuln|scan|porta|log|alerta|firewall|nmap|backup|hardening|jwt|hash|token|base64|certificad|ssl|tls|header|cabecalho|cabeçalho|subdomín|subdomin)\b"),
 ]
 
 
@@ -96,10 +96,10 @@ def classify(prompt: str) -> str:
 # validação aceita QUALQUER ferramenta registrada, e o retry usa a lista
 # completa — então nunca exclui a ferramenta certa de forma definitiva.
 _BUCKET_CATEGORIES: dict[str, set[str]] = {
-    "network": {"rede", "diagnóstico", "osint", "ofensivo"},
+    "network": {"rede", "diagnóstico", "osint", "ofensivo", "web"},
     "system": {"sistema", "diagnóstico"},
     "security": {"ofensivo", "exploração", "burp", "engenharia-reversa",
-                 "osint", "rede", "diagnóstico"},
+                 "osint", "rede", "diagnóstico", "web", "cripto"},
 }
 
 

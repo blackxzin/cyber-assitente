@@ -2,7 +2,9 @@
 
 from tools.registry import ToolRegistry
 
-from tools import burp, diagnostics, memory, network, osint, pentest, reverse, system
+from tools import (
+    burp, crypto, diagnostics, memory, network, osint, pentest, reverse, system, web,
+)
 
 
 def build_registry() -> ToolRegistry:
@@ -15,4 +17,6 @@ def build_registry() -> ToolRegistry:
     reverse.register(registry)
     burp.register(registry)
     memory.register(registry)
+    crypto.register(registry)
+    web.register(registry)
     return registry

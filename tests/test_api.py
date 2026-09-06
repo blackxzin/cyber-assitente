@@ -42,6 +42,8 @@ def test_list_tools_includes_confirmable_ones(client):
         "burp_proxy_history", "burp_search_history", "burp_find_vulnerabilities",
         "burp_send_request",
         "email_osint", "username_osint", "domain_whois", "subdomain_enum",
+        "jwt_decode", "hash_identify", "encode_decode",
+        "http_headers", "tls_inspect", "dns_lookup",
     } <= names
 
 
@@ -53,6 +55,10 @@ def test_tools_expose_category_for_ui_grouping(client):
     assert by_name["email_osint"] == "osint"
     assert by_name["domain_whois"] == "osint"
     assert by_name["searchsploit_lookup"] == "exploração"
+    assert by_name["http_headers"] == "web"
+    assert by_name["tls_inspect"] == "web"
+    assert by_name["dns_lookup"] == "web"
+    assert by_name["jwt_decode"] == "cripto"
     assert by_name["re_file_info"] == "engenharia-reversa"
     assert by_name["burp_proxy_history"] == "burp"
     assert by_name["system_info"] == "sistema"
