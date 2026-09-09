@@ -11,3 +11,4 @@ mcp==2.0.0
 holehe==1.61
 sherlock-project==0.16.0
 python-whois==0.9.6
+fpdf2>=2.8

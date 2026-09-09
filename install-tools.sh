@@ -13,9 +13,11 @@ declare -A PAC=(
   [nmap]=nmap [sqlmap]=sqlmap [gobuster]=gobuster [nikto]=nikto
   [hydra]=hydra [dumpcap]=wireshark-cli [tshark]=wireshark-cli
   [r2]=radare2 [yara]=yara [searchsploit]=exploitdb
+  [nuclei]=nuclei [ffuf]=ffuf [msfconsole]=metasploit
+  [subfinder]=subfinder [smbclient]=smbclient
 )
 # binário -> pacote pipx (PyPI)
-declare -A PIPX=( [holehe]=holehe [sherlock]=sherlock-project )
+declare -A PIPX=( [holehe]=holehe [sherlock]=sherlock-project [wafw00f]=wafw00f )
 
 missing_pac=()
 for bin in "${!PAC[@]}"; do

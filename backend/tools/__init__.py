@@ -3,7 +3,8 @@
 from tools.registry import ToolRegistry
 
 from tools import (
-    burp, crypto, diagnostics, memory, network, osint, pentest, reverse, system, web,
+    burp, crypto, diagnostics, enum, exploit, memory, network, osint, pentest,
+    pipeline, recon_api, reporting, reverse, system, web, webscan,
 )
 
 
@@ -19,4 +20,10 @@ def build_registry() -> ToolRegistry:
     memory.register(registry)
     crypto.register(registry)
     web.register(registry)
+    webscan.register(registry)
+    enum.register(registry)
+    exploit.register(registry)
+    recon_api.register(registry)
+    reporting.register(registry)
+    pipeline.register(registry)
     return registry

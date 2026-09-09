@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # --- OSINT CPF (backend/tools/pentest.py) ---
     cpf_finder_dir: str = str(Path.home() / "cpfFinder")
 
+    # --- Shodan (recon passivo, backend/tools/recon_api.py) ---
+    # Chave em https://account.shodan.io. Vazio = shodan_host devolve aviso.
+    shodan_api_key: str = ""
+
+    # --- Relatórios exportados (backend/tools/reporting.py) ---
+    reports_dir: str = str(ROOT / "reports")
+
     # --- Burp MCP Server (extensão oficial PortSwigger, backend/tools/burp.py) ---
     burp_mcp_url: str = "http://127.0.0.1:9876/"
     burp_mcp_timeout: float = 30.0

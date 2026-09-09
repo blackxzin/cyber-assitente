@@ -12,6 +12,9 @@ from database import db as database
 PENTEST_TOOLS = (
     "nmap_scan", "sqlmap_scan", "hydra_bruteforce", "gobuster_scan",
     "nikto_scan", "packet_capture", "cpf_osint",
+    "nuclei_scan", "ffuf_scan", "wafw00f_scan",
+    "smb_enum", "enum4linux_scan", "subfinder_scan", "shodan_host",
+    "msf_module", "searchsploit_lookup",
     "burp_search_history", "burp_find_vulnerabilities", "burp_proxy_history",
 )
 

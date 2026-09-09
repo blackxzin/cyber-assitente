@@ -12,3 +12,6 @@ htmlcov/
 /tmp/
 burp-extension/out/
 burp-extension/*.jar
+
+# Relatórios exportados (tools/reporting.py)
+reports/

@@ -15,8 +15,8 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776ab?style=flat-square&logo=python&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
   <img alt="IA local" src="https://img.shields.io/badge/IA-local%20(Ollama)-000000?style=flat-square&logo=ollama&logoColor=white">
-  <img alt="Ferramentas" src="https://img.shields.io/badge/ferramentas-42-2E5BFF?style=flat-square">
-  <img alt="Testes" src="https://img.shields.io/badge/testes-424%20passing-0B7A48?style=flat-square">
+  <img alt="Ferramentas" src="https://img.shields.io/badge/ferramentas-53-2E5BFF?style=flat-square">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-487%20passing-0B7A48?style=flat-square">
 </p>
 
 > A **demo** é interativa: um terminal que roda o Cyber com saídas de recon **reais**
@@ -36,6 +36,14 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - `hydra_bruteforce` — testa credenciais contra um serviço (ssh/ftp/http/mysql/...), para no primeiro par válido (porta customizada opcional via `port`);
   - `gobuster_scan` — enumera diretórios/arquivos de uma URL;
   - `nikto_scan` — varre vulnerabilidades web conhecidas numa URL;
+  - `nuclei_scan` — scanner de vulnerabilidades por **template** (nuclei/ProjectDiscovery): roda milhares de checagens de CVE/misconfig/exposure numa URL, com rate-limit e filtro de `severity` (padrão medium+) e `tags` opcionais (ex: `cve,exposure`); saída ordenada por gravidade;
+  - `ffuf_scan` — fuzzing rápido de diretórios/arquivos/parâmetros (alternativa ao gobuster, bem mais veloz): aceita o marcador `FUZZ` na URL (anexa no fim se faltar), `wordlist` e `match_codes` opcionais;
+  - `wafw00f_scan` — detecta qual WAF/firewall de aplicação está na frente de uma URL (Cloudflare, Akamai, etc.), útil antes de escolher técnica de evasão;
+  - `web_recon_chain` — recon web encadeado numa URL (fingerprint de headers **+** `nuclei`) numa tacada só, na ordem certa;
+  - `recon_pipeline` — pipeline completo num **host**: `nmap` → detecta serviços web abertos → `http_headers` + `nuclei` em cada um, numa tacada só (fluxo clássico descobrir→provar→escanear);
+  - `smb_enum` — lista shares SMB de um host via `smbclient` (sessão nula por padrão; `username`/`password` opcionais);
+  - `enum4linux_scan` — enumeração SMB/Samba completa (usuários, shares, políticas) via `enum4linux`;
+  - `msf_module` — roda um módulo do **Metasploit** contra um alvo (`module`, `rhosts`, `options` opcionais) de forma não-interativa (`msfconsole -q -x`), com módulo/opções validados contra injeção;
   - `searchsploit_lookup` — busca exploit conhecido offline (exploit-db local) por serviço/versão
     (`pacman -S exploitdb` no Arch); **não pede confirmação** (busca local, não toca o alvo) e
     roda automático depois de todo `nmap_scan` — cada serviço com versão detectada vira uma
@@ -49,6 +57,8 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   - `domain_whois` — WHOIS de domínio (registrante, datas, nameservers), via `python-whois`;
   - `subdomain_enum` — enumera subdomínios por certificate transparency ([crt.sh](https://crt.sh),
     às vezes instável/rate-limited — falha vira mensagem de erro clara, não trava o chat).
+  - `subfinder_scan` — enumera subdomínios via [subfinder](https://github.com/projectdiscovery/subfinder) (dezenas de fontes públicas, mais completo que só crt.sh); passivo, não toca o alvo;
+  - `shodan_host` — consulta o [Shodan](https://shodan.io) sobre um IP (portas, serviços, CVEs já indexados) sem tocar o alvo; precisa de `SHODAN_API_KEY` no `.env`.
 - **Recon web** (sem binário externo — httpx/ssl já são dependências, então roda em qualquer
   máquina; risco `info`):
   - `http_headers` — um GET no alvo e laudo de banners de tecnologia/versão, headers de
@@ -112,7 +122,7 @@ terminal controlado, dashboard e uma **personagem animada** como interface visua
   `hydra_bruteforce`/`gobuster_scan`/`nikto_scan` recusam alvo fora dele — antes mesmo de
   pedir confirmação humana, e re-checado de novo no momento da aprovação (o escopo pode
   ter mudado entre pedir e aprovar).
-- **Relatório de pentest**: botão "📄 Baixar relatório" na aba "🛡 Segurança" (`GET /api/report`)
+- **Relatório de pentest**: botão "📄 Baixar relatório" na aba "🛡 Segurança" (`GET /api/report`) — e a ferramenta `export_report` grava o relatório em arquivo (`md`, `html` imprimível ou **`pdf`** via fpdf2) em `reports/`
   compila as últimas execuções de ferramentas ofensivas + alertas do watcher num Markdown
   pronto pra arquivar/entregar.
 
